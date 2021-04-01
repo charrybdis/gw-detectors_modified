@@ -169,14 +169,15 @@ coord=geographic --> interpret (azimuth, pole) as (phi, theta) in Earth-fixed co
         else:
             raise ValueError('coord=%s is not understood!'%coord)
 
-        return self.__geographic_response(freqs, phi, theta, psi, long_wavelength_approximation=self.long_wavelength_approximation)
+        unphased_response = self.__geographic_response(freqs, phi, theta, psi, long_wavelength_approximation=self.long_wavelength_approximation, *self.arms)
+        return unphased_response * self._phase(freqs, geocent_time, phi, theta)
 
     @staticmethod
-    def __geographic_response(freqs, phi, theta, psi, long_wavelength_approximation=False):
+    def __geographic_unphased_response(freqs, phi, theta, psi, long_wavelength_approximation=False, *arms):
         """the detector response when angles defining direction to source (phi, theta) are provided in Earth-fixed coordinates \
         NOTE: Child classes should overwrite this!
         """
-        raise NotImplementedError
+        raise NotImplementedError('Child classes should overwrite this depending on the number of arms!')
 
     def _phase(self, freqs, geocent_time, phi, theta):
         """compute the phase shift relative to geocenter. Assumes angles are specified in geographic coordinates (pointing towards the source from geocenter)
