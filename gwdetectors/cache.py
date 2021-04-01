@@ -4,7 +4,8 @@ __author__ = "Reed Essick <reed.essick@gmail.com>"
 
 #-------------------------------------------------
 
-from .detector import (Detector, TwoArmDetector, PowerSpectralDensity)
+from .detector import PowerSpectralDensity
+from .twoarmdetector import TwoArmDetector
 
 #-------------------------------------------------
 
@@ -36,6 +37,33 @@ known_psds = dict((name, PSD(psd['freqs'], psd['vals'])) for name, psd in \
 ### Detectors
 
 '''
+#=================================================
+# known detectors
+#=================================================
+
+c = 299792458.0 #m/s
+
+### Detector locations and orientations taken from Anderson, et all PhysRevD 63(04) 2003
+detectors = {}
+
+__H_dr__ = np.array((-2.161415, -3.834695, +4.600350))*1e6/c # sec
+__H_nx__ = np.array((-0.2239, +0.7998, +0.5569))
+__H_ny__ = np.array((-0.9140, +0.0261, -0.4049))
+detectors["H"] = Detector("H", __H_dr__, __H_nx__, __H_ny__, copy.deepcopy(aligo_design_psd))
+
+__L_dr__ = np.array((-0.074276, -5.496284, +3.224257))*1e6/c # sec
+__L_nx__ = np.array((-0.9546, -0.1416, -0.2622))
+__L_ny__ = np.array((+0.2977, -0.4879, -0.8205))
+detectors["L"] = Detector("L", __L_dr__, __L_nx__, __L_ny__, copy.deepcopy(aligo_design_psd))
+
+__V_dr__ = np.array((+4.546374, +0.842990, +4.378577))*1e6/c # sec
+__V_nx__ = np.array((-0.7005, +0.2085, +0.6826))
+__V_ny__ = np.array((-0.0538, -0.9691, +0.2408))
+detectors["V"] = Detector("V", __V_dr__, __V_nx__, __V_ny__, copy.deepcopy(avirgo_design_psd))
+
+
+
+
 for name in ['aLIGO', 'aLIGO_O1', 'aLIGO_O2', 'aLIGO_O3', 'aLIGO_design', 'aPlus', 'aPlus_sqzonly']:
     known_detectors += [
         Detector(
