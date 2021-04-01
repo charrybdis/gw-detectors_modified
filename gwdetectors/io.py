@@ -9,15 +9,28 @@ try:
 except ImportError:
     from configparser import ConfigParser ### Python 3
 
-from .detector import Network
+from .detector import (Network, OneSidedPowerSpectralDensity)
 from .cache import (KNOWN_DETECTORS, DETECTORS, KNOWN_DETECTOR_ORIENTATIONS, DETECTOR_ORIENTATIONS, KNOWN_PSDS, PSDS)
 
 #-------------------------------------------------
 
 def path2psd(path, verbose=False):
     if verbose:
-        print('loading PSD from: '+psd)
-    raise NotImplementedError('load in the PSD from disk')
+        print('loading PSD from: '+path)
+    if path.endswith('.dat'):
+        ans = np.genfromtxt(path, names=True)
+        freqs = ans['frequency']
+        psd = ans['psd']
+
+    elif path.endswith('.csv') or path.endswith('.csv.gz'):
+        ans = np.genfromtxt(path, names=True, delimiter=',')
+        freqs = ans['frequency']
+        psd = ans['psd']
+
+    else:
+        raise ValueError('file format for path=%s not understood!'%path)
+
+    return OneSidedPowerSpectralDensity(freqs, psd)
 
 #-------------------------------------------------
 
