@@ -7,3 +7,4 @@ __author__ = "Reed Essick <reed.essick@gmail.com>"
 from .detector import *
 from .twoarmdetector import *
 from .cache import *
+from .io import *
