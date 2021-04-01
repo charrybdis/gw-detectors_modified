@@ -45,7 +45,7 @@ def parse_config(section, config, verbose=False):
     elif section in cache.KNOWN_DETECTOR_ORIENTATIONS:
         if verbose:
             print('using known detector orientation: '+section)
-        instantiator, location, xarm, yarm = cache.DETECTOR_ORIENTATIONS
+        instantiator, location, arms = cache.DETECTOR_ORIENTATIONS
 
         if config.has_option(section, 'long_wavelength_approximation'):
             long_wavelength_approximation = config.getbool(section, 'long_wavelength_approximation')
@@ -63,7 +63,7 @@ def parse_config(section, config, verbose=False):
         else:
             psd = path2psd(path, verbose=verbose)
 
-        return instantiator(section, psd, location, xarm, yarm, long_wavelength_approximation=long_wavelength_approximation)
+        return instantiator(section, psd, location, *arms, long_wavelength_approximation=long_wavelength_approximation)
 
     else:
         raise RuntimeError('detector=%s not understood!'%section)
