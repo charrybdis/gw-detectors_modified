@@ -4,20 +4,13 @@ __author__ = "Reed Essick <reed.essick@gmail.com>"
 
 #-------------------------------------------------
 
-from gwdetector.detector import OneSidedPowerSpectralDensity
+from gwdetectors.detector import OneSidedPowerSpectralDensity
 
 #-------------------------------------------------
 
-### list known reference PSDs...
-
-"""
-list known (reference) PSDs
-write a factory to put stuff together?
-
-"""
-
-
 ### Power Spectral Densities
+
+PSDS = dict()
 
 '''
 known_psds = dict((name, PSD(psd['freqs'], psd['vals'])) for name, psd in \
@@ -39,3 +32,7 @@ known_psds = dict((name, PSD(psd['freqs'], psd['vals'])) for name, psd in \
     ]
 )
 '''
+
+#------------------------
+
+KNOWN_PSDS = sorted(PSDS.keys())

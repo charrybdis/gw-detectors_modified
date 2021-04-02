@@ -22,4 +22,4 @@ for orientation_name, (instantiator, location, arms) in DETECTOR_ORIENTATIONS.it
 
 #------------------------
 
-KNOWN_DETECTORS = DETECTORS.keys()
+KNOWN_DETECTORS = sorted(DETECTORS.keys())

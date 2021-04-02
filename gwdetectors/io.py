@@ -17,7 +17,7 @@ from .cache import (KNOWN_DETECTORS, DETECTORS, KNOWN_DETECTOR_ORIENTATIONS, DET
 def path2psd(path, verbose=False):
     if verbose:
         print('loading PSD from: '+path)
-    if path.endswith('.dat'):
+    if path.endswith('.dat') or path.endswith('.dat.gz') or path.endswith('.txt') or path.endswith('.txt.gz'):
         ans = np.genfromtxt(path, names=True)
         freqs = ans['frequency']
         psd = ans['psd']
