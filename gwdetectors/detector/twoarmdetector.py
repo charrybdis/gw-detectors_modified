@@ -28,7 +28,7 @@ class TwoArmDetector(Detector):
     #---
 
     def zenith(self, coord=DEFAULT_COORD):
-        phi, theta = self.__geographic_zenith()
+        phi, theta = self._geographic_zenith()
         if coord=='geographic':
             return phi, theta
         elif coord=='celestial':
@@ -38,7 +38,7 @@ class TwoArmDetector(Detector):
         else:
             raise ValueError('coord=%s not understood!'%coord)
 
-    def __geographic_zenith(self):
+    def _geographic_zenith(self):
         nx, ny = self.arm_directions
 
         ### take cross product by hand
@@ -51,13 +51,16 @@ class TwoArmDetector(Detector):
     #---
 
     @staticmethod
-    def __geographic_unphased_response(freqs, phi, theta, psi, arms, long_wavelength_approximation=True):
+    def _geographic_unphased_response(freqs, phi, theta, psi, arms, long_wavelength_approximation=True):
         '''detector response for 2 arms, where we take the difference between the arms as the signal
         '''
         assert len(arms) == 2, 'must supply exactly 2 arms'
         xarm, yarm = arms
         if long_wavelength_approximation:
-            return lwa_antenna_response(phi, theta, psi, xarm, yarm)
+            ans = np.ones((2, len(freqs)), dtype=float)
+            ans[0,:], ans[1,:] = lwa_antenna_response(phi, theta, psi, xarm, yarm)
+            return ans
+
         else:
             return antenna_response(freqs, phi, theta, psi, xarm, yarm)
 
@@ -84,7 +87,7 @@ def lwa_antenna_response(phi, theta, psi, xarm, yarm):
     nx /= np.sum(nx**2)**0.5
 
     ny = np.array(yarm)
-    ny = np.sum(ny**2)**0.5
+    ny /= np.sum(ny**2)**0.5
 
     ### iterate over x,y,z to compute F+ and Fx
     Fp = 0.
