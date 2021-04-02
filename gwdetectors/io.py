@@ -4,6 +4,8 @@ __author__ = "Reed Essick <reed.essick@gmail.com>"
 
 #-------------------------------------------------
 
+import numpy as np
+
 try:
     from ConfigParser import ConfigParser ### Python 2
 except ImportError:
@@ -34,36 +36,37 @@ def path2psd(path, verbose=False):
 
 #-------------------------------------------------
 
-def parse_config(section, config, verbose=False):
+def parse_config_section(section, config, verbose=False):
     """advanced parsing logic to get a detector out of a config section
     """
-    if section in cache.KNOWN_DETECTORS: ### just load this without looking for a specific PSD
+    if section in KNOWN_DETECTORS: ### just load this without looking for a specific PSD
         if verbose:
             print('using known detector: '+section)
         return DETECTORS[section]
 
-    elif section in cache.KNOWN_DETECTOR_ORIENTATIONS:
+    elif section in KNOWN_DETECTOR_ORIENTATIONS:
         if verbose:
             print('using known detector orientation: '+section)
-        instantiator, location, arms = cache.DETECTOR_ORIENTATIONS
+        instantiator, location, arms = DETECTOR_ORIENTATIONS[section]
 
         if config.has_option(section, 'long_wavelength_approximation'):
-            long_wavelength_approximation = config.getbool(section, 'long_wavelength_approximation')
+            long_wavelength_approximation = config.getboolean(section, 'long_wavelength_approximation')
         else:
             if verbose:
                 print('defaulting to long_wavelength_approximation=True')
             long_wavelength_approximation = True
 
-        psd = config.get_option(section, 'psd')
-        if psd in cache.KNOWN_PSDS:
+        assert config.has_option(section, 'psd'), 'Config section=%s must have option "psd"'%section
+        psd = config.get(section, 'psd')
+        if psd in KNOWN_PSDS:
             if verbose:
                 print('using known PSD: '+psd)
-            psd = cache.PSDS[psd]
+            psd = PSDS[psd]
 
         else:
-            psd = path2psd(path, verbose=verbose)
+            psd = path2psd(psd, verbose=verbose)
 
-        return instantiator(section, psd, location, *arms, long_wavelength_approximation=long_wavelength_approximation)
+        return instantiator(section, psd, location, arms, long_wavelength_approximation=long_wavelength_approximation)
 
     else:
         raise RuntimeError('detector=%s not understood!'%section)
@@ -79,10 +82,11 @@ def parse(path, verbose=False):
     ### iterate over sections and create detectors
     network = Network()
     for name in config.sections(): ### iterate through config's sections
-        if name in cache.KNOWN_DETECTOR_ORIENTATIONS:
+        try:
             network.append(parse_config_section(name, config, verbose=verbose))
-        elif verbose:
-            print('section=%s not understood; skipping'%name)
+        except RuntimeError:
+            if verbose:
+                print('section=%s not understood; skipping'%name)
 
     ### make sure we got at least one detector
     assert len(network), 'must have at least one detector in our network!'

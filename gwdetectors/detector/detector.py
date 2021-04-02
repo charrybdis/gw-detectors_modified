@@ -84,7 +84,7 @@ class Network(object):
         return self.detectors
 
     def __len__(self):
-        return len(self)
+        return len(self.detectors)
 
     def snr(self, *args, **kwargs):
         snr = 0.
@@ -102,7 +102,7 @@ class Detector(object):
     """A representation of a ground-based Gravitational Wave detector
     """
 
-    def __init__(self, name, psd, location, long_wavelength_approximation=True, *arms):
+    def __init__(self, name, psd, location, arms, long_wavelength_approximation=True):
         self._name = name
         self.psd = psd
         self.location = np.array(location) ### light-seconds relative to geocenter
@@ -133,8 +133,8 @@ class Detector(object):
 
     @location.setter
     def location(self, new):
-        assert np.shape(location) == (3,), 'bad shape for location'
-        self._location = np.array(location, dtype=float)
+        assert np.shape(new) == (3,), 'bad shape for location'
+        self._location = np.array(new, dtype=float)
 
     @property
     def arms(self):
@@ -169,11 +169,11 @@ coord=geographic --> interpret (azimuth, pole) as (phi, theta) in Earth-fixed co
         else:
             raise ValueError('coord=%s is not understood!'%coord)
 
-        unphased_response = self.__geographic_response(freqs, phi, theta, psi, long_wavelength_approximation=self.long_wavelength_approximation, *self.arms)
+        unphased_response = self.__geographic_response(freqs, phi, theta, psi, self.arms, long_wavelength_approximation=self.long_wavelength_approximation)
         return unphased_response * self._phase(freqs, geocent_time, phi, theta)
 
     @staticmethod
-    def __geographic_unphased_response(freqs, phi, theta, psi, long_wavelength_approximation=False, *arms):
+    def __geographic_unphased_response(freqs, phi, theta, psi, arms, long_wavelength_approximation=False):
         """the detector response when angles defining direction to source (phi, theta) are provided in Earth-fixed coordinates \
         NOTE: Child classes should overwrite this!
         """

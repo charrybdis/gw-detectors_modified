@@ -19,10 +19,11 @@ class TwoArmDetector(Detector):
     """A representation of a detector with 2 arms
     """
 
-    def __init__(self, name, psd, location, xarm, yarm, long_wavelength_approximation=True):
+    def __init__(self, name, psd, location, arms, long_wavelength_approximation=True):
         """signature requres exactly 2 arms
         """
-        Detector.__init__(self, name, psd, location, xarm, yarm, long_wavelength_approximation=long_wavelength_approximation)
+        assert len(arms) == 2, 'must supply exactly 2 arms'
+        Detector.__init__(self, name, psd, location, arms, long_wavelength_approximation=long_wavelength_approximation)
 
     #---
 
@@ -50,9 +51,11 @@ class TwoArmDetector(Detector):
     #---
 
     @staticmethod
-    def __geographic_unphased_response(freqs, phi, theta, psi, xarm, yarm, long_wavelength_approximation=True):
+    def __geographic_unphased_response(freqs, phi, theta, psi, arms, long_wavelength_approximation=True):
         '''detector response for 2 arms, where we take the difference between the arms as the signal
         '''
+        assert len(arms) == 2, 'must supply exactly 2 arms'
+        xarm, yarm = arms
         if long_wavelength_approximation:
             return lwa_antenna_response(phi, theta, psi, xarm, yarm)
         else:
