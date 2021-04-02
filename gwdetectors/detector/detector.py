@@ -207,16 +207,16 @@ coord=geographic --> interpret (azimuth, pole) as (phi, theta) in Earth-fixed co
 
     def snr(self, freqs, hp, hx, geocent_time, azimuth, pole, psi, coord=DEFAULT_COORD):
         h = self.project(freqs, hp, hx, geocent_time, azimuth, pole, psi, coord=coord)
-        return self._inner_product(freqs, h, h)**0.5
+        return self._inner_product(freqs, h, h).real**0.5
 
     def _inner_product(self, freqs, a, b):
         return 4*np.trapz(np.conjugate(a)*b/self.psd(freqs), x=freqs)
 
     def loglikelihood(self, freqs, data, hp, hx, geocent_time, azimuth, pole, psi, coord=DEFAULT_COORD):
         h = self.project(freqs, hp, hx, geocent_time, azimuth, pole, psi, coord=coord)
-        return -0.5*self._inner_product(freqs, data-h, data-h)
+        return -0.5*self._inner_product(freqs, data-h, data-h).real
 
     def filter(self, freqs, data, hp, hx, geocent_time, azimuth, pole, psi, coord=DEFAULT_COORD):
         h = self.project(freqs, hp, hx, geocent_time, azimuth, pole, psi, coord=coord)
-        h /= self._inner_product(freqs, h, h)**0.5
+        h /= self._inner_product(freqs, h, h).real**0.5
         return self._inner_product(freqs, data, h)
