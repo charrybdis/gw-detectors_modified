@@ -189,7 +189,7 @@ coord=geographic --> interpret (azimuth, pole) as (phi, theta) in Earth-fixed co
     def _phase(self, freqs, geocent_time, phi, theta):
         """compute the phase shift relative to geocenter. Assumes angles are specified in geographic coordinates (pointing towards the source from geocenter)
         """
-        return -2j*np.pi * freqs * self._dt(phi, theta)
+        return np.exp(-2j*np.pi * freqs * self._dt(phi, theta))
 
     def _dt(self, phi, theta):
         """
