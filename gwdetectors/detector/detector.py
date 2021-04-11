@@ -153,8 +153,9 @@ class Detector(object):
 
     #---
 
-    def response(self, freqs, geocent_time, azimuth, pole, psi, coord=DEFAULT_COORD):
-        """\
+    @staticmethod
+    def _geocent_angles(geocent_time, azimuth, pole, coord=DEFAULT_COORD):
+        """return geographic coordinates
 coord=celestial --> interpret (azimuth, pole) as (RA, Dec) celestial coordinates
 coord=geographic --> interpret (azimuth, pole) as (phi, theta) in Earth-fixed coordinates
         """
@@ -169,6 +170,13 @@ coord=geographic --> interpret (azimuth, pole) as (phi, theta) in Earth-fixed co
         else:
             raise ValueError('coord=%s is not understood!'%coord)
 
+    def response(self, freqs, geocent_time, azimuth, pole, psi, coord=DEFAULT_COORD):
+        """\
+coord=celestial --> interpret (azimuth, pole) as (RA, Dec) celestial coordinates
+coord=geographic --> interpret (azimuth, pole) as (phi, theta) in Earth-fixed coordinates
+        """
+        phi, theta = self._geographic_angles(geocent_time, azimuth, pole, coord=coord)
+
         unphased_response = self._geographic_unphased_response(
             freqs,
             phi,
@@ -177,7 +185,7 @@ coord=geographic --> interpret (azimuth, pole) as (phi, theta) in Earth-fixed co
             self.arms,
             long_wavelength_approximation=self.long_wavelength_approximation,
         )
-        return unphased_response * self._phase(freqs, geocent_time, phi, theta)
+        return unphased_response * self._geographic_phase(freqs, phi, theta)
 
     @staticmethod
     def _geographic_unphased_response(freqs, phi, theta, psi, arms, long_wavelength_approximation=False):
@@ -186,14 +194,22 @@ coord=geographic --> interpret (azimuth, pole) as (phi, theta) in Earth-fixed co
         """
         raise NotImplementedError('Child classes should overwrite this depending on the number of arms!')
 
-    def _phase(self, freqs, geocent_time, phi, theta):
+    def phase(self, freqs, geocent_time, azimuth, pole, coord=DEFAULT_COORD):
+        phi, theta = self._geocent_angles(geocent_time, azimuth, pole, coord=coord)
+        return self._geographic_phase(freqs, phi, theta)
+
+    def _geographic_phase(self, freqs, phi, theta):
         """compute the phase shift relative to geocenter. Assumes angles are specified in geographic coordinates (pointing towards the source from geocenter)
         """
         return np.exp(-2j*np.pi * freqs * self._dt(phi, theta))
 
-    def _dt(self, phi, theta):
+    def dt(self, geocent_time, azimuth, pole, coord=DEFAULT_COORD):
+        """return the delay relative to geocenter
         """
-        time delay relative to geocenter
+        return self._geographic_dt(*self._geocent_angles(geocent_time, azimuth, pole, coord=coord))
+
+    def _geographic_dt(self, phi, theta):
+        """time delay relative to geocenter given input in geographic coordinates
         """
         sinTheta = np.sin(theta)
         n = -np.array([np.cos(phi)*sinTheta, np.sin(phi)*sinTheta, np.cos(theta)]) ### direction of propogation
