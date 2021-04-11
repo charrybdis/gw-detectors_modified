@@ -154,7 +154,7 @@ class Detector(object):
     #---
 
     @staticmethod
-    def _geocent_angles(geocent_time, azimuth, pole, coord=DEFAULT_COORD):
+    def _geographic_angles(geocent_time, azimuth, pole, coord=DEFAULT_COORD):
         """return geographic coordinates
 coord=celestial --> interpret (azimuth, pole) as (RA, Dec) celestial coordinates
 coord=geographic --> interpret (azimuth, pole) as (phi, theta) in Earth-fixed coordinates
