@@ -92,12 +92,12 @@ def lwa_antenna_response(phi, theta, psi, xarm, yarm):
     ### iterate over x,y,z to compute F+ and Fx
     Fp = 0.
     Fx = 0.
-    for i in xrange(3):
+    for i in range(3):
         nx_i = nx[i]
         ny_i = ny[i]
         Xi = X[i]
         Yi = Y[i]
-        for j in xrange(3):
+        for j in range(3):
             Xj = X[j]
             Yj = Y[j]
             Dij = 0.5*(nx_i*nx[j] - ny_i*ny[j]) ### detector matrix
@@ -146,12 +146,12 @@ def antenna_response(freqs, phi, theta, psi, xarm, yarm, T=1.):
     ### assemble these parts into antenna responses
     Fp = 0.
     Fx = 0.
-    for i in xrange(3): ### FIXME? may be able to do this more efficiently vi np.array manipulations?
+    for i in range(3): ### FIXME? may be able to do this more efficiently vi np.array manipulations?
         exi = ex[i]
         eyi = ey[i]
         ex_wavei = ex_wave[i]
         ey_wavei = ey_wave[i]
-        for j in xrange(3):
+        for j in range(3):
             ex_wavej = ex_wave[j]
             ey_wavej = ey_wave[j]
             Dij = dV_xx * exi*ex[j] - dV_yy * eyi*ey[j] ### compute matrix element for detector matrix
