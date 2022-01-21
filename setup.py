@@ -18,6 +18,6 @@ setup(
     license = 'MIT',
     scripts = glob.glob("bin/*"),
     packages = find_packages(),
-    data_files = [],
+    package_data={'':['*csv.gz']}, ### grabs psds stored under gwdetectors.cache
     requires = [], ### FIXME: specify requirements for numpy, h5py, lalsuite, else?
 )

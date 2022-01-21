@@ -23,12 +23,25 @@ class OneSidedPowerSpectralDensity(object):
     """A representation of a power spectral density
     """
 
-    def __init__(self, freqs, psd):
+    def __init__(self, freqs, psd, name=None):
         assert np.all(freqs >= 0), 'frequencies must be positive semi-definite for one-sided power spectral densities'
         self._freqs = freqs
 
         assert len(freqs)==len(psd), 'frequencies and psd must have the same length'
         self._psd = psd
+
+        self._name = name
+
+    def __repr__(self):
+        freqs = self.freqs
+        ans = 'freq within [%.6e %.6e])' % (np.min(freqs), np.max(freqs))
+        if self.name is not None:
+            ans = self.name + ", " + ans
+        return 'OneSidedPowerSpectralDensity(%s)'%ans
+
+    @property
+    def name(self):
+        return self._name
 
     @property
     def freqs(self):
@@ -53,47 +66,6 @@ class OneSidedPowerSpectralDensity(object):
 
 #-------------------------------------------------
 
-### Network of detectors
-
-class Network(object):
-    """A reperesentation of a network of ground-based Gravitational Wave detectors
-    """
-
-    def __init__(self, *detectors):
-        self._detectors = []
-        self.extend(detectors)
-
-    @property
-    def detectors(self):
-        return self._detectors
-
-    @property
-    def names(self):
-        return [detector.name for detector in self.detectors]
-
-    def extend(self, detectors):
-        for detector in detectors:
-            self.append(detector)
-
-    def append(self, detector):
-        assert isinstance(detector, Detector), 'detectors must be instances of Detector objects'
-        assert detector.name not in self.names, 'detector named %s already exists in the network!'%detector.name
-        self._detectors.append(detector)
-
-    def __iter__(self):
-        return iter(self.detectors)
-
-    def __len__(self):
-        return len(self.detectors)
-
-    def snr(self, *args, **kwargs):
-        snr = 0.
-        for detector in self:
-            snr += detector.snr(*args, **kwargs)**2
-        return snr**0.5        
-
-#-------------------------------------------------
-
 ### Detector objects
 # NOTE:
 # we only support 2 polarizations in what follows, but we might as well generalize this to support all 6 possible polarizations
@@ -113,6 +85,19 @@ class Detector(object):
         for arm in arms:
             assert np.shape(arm)==(3,), 'arms must be specified as 3-vectors!'
             self._arms.append(np.array(arm)) ### arm interpreted as the 3 vector defining direction with norm == the light-seconds corresponding to length
+
+    def __repr__(self):
+        ans = type(self).__name__ + '('
+        ans += '\n  %s,'%self.name
+        ans += '\n  location = (%.6e, %.6e, %.6e) sec,'%tuple(self.location)
+        ans += '\n  arms = ('
+        for arm in self.arms:
+            ans += '\n    (%.6e, %.6e, %.6e) sec,'%tuple(arm)
+        ans += '\n  )'
+        ans += '\n  psd = %s,'%str(self.psd)
+        ans += '\n  long-wavelength approximation = %s,'%str(self.long_wavelength_approximation)
+        ans += '\n)'
+        return ans  
 
     @property
     def name(self):
@@ -238,3 +223,51 @@ coord=geographic --> interpret (azimuth, pole) as (phi, theta) in Earth-fixed co
         h = self.project(freqs, hp, hx, geocent_time, azimuth, pole, psi, coord=coord)
         h /= self._inner_product(freqs, h, h).real**0.5
         return self._inner_product(freqs, data, h)
+
+#-------------------------------------------------
+
+### Network of detectors
+
+class Network(object):
+    """A reperesentation of a network of ground-based Gravitational Wave detectors
+    """
+
+    def __init__(self, *detectors):
+        self._detectors = []
+        self.extend(detectors)
+
+    def __repr__(self):
+        ans = 'Network('
+        for det in self.detectors:
+            ans += '\n  %s,'%(' '.join(str(det).split()))
+        ans += '\n)'
+        return ans
+
+    @property
+    def detectors(self):
+        return self._detectors
+
+    @property
+    def names(self):
+        return [detector.name for detector in self.detectors]
+
+    def extend(self, detectors):
+        for detector in detectors:
+            self.append(detector)
+
+    def append(self, detector):
+        assert isinstance(detector, Detector), 'detectors must be instances of Detector objects'
+        assert detector.name not in self.names, 'detector named %s already exists in the network!'%detector.name
+        self._detectors.append(detector)
+
+    def __iter__(self):
+        return iter(self.detectors)
+
+    def __len__(self):
+        return len(self.detectors)
+
+    def snr(self, *args, **kwargs):
+        snr = 0.
+        for detector in self:
+            snr += detector.snr(*args, **kwargs)**2
+        return snr**0.5
