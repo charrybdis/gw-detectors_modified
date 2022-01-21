@@ -4,35 +4,42 @@ __author__ = "Reed Essick <reed.essick@gmail.com>"
 
 #-------------------------------------------------
 
+import numpy as np
+from pkg_resources import resource_filename
+
 from gwdetectors.detector import OneSidedPowerSpectralDensity
+
+#-------------------------------------------------
+
+def path2psd(path, verbose=False, name=None):
+    if verbose:
+        print('loading PSD from: '+path)
+
+    if path.endswith('.dat') or path.endswith('.dat.gz') or path.endswith('.txt') or path.endswith('.txt.gz'):
+        ans = np.genfromtxt(path, names=True)
+        freqs = ans['frequency']
+        psd = ans['psd']
+
+    elif path.endswith('.csv') or path.endswith('.csv.gz'):
+        ans = np.genfromtxt(path, names=True, delimiter=',')
+        freqs = ans['frequency']
+        psd = ans['psd']
+
+    else:
+        raise ValueError('file format for path=%s not understood!'%path)
+
+    if name is None:
+        name = path
+
+    return OneSidedPowerSpectralDensity(freqs, psd, name=name)
 
 #-------------------------------------------------
 
 ### Power Spectral Densities
 
-PSDS = dict()
+PSDS = dict((name, path2psd(resource_filename('gwdetectors.cache', name+".csv.gz"), name=name)) for name in \
+    ['aligo-design', 'aplus-design', 'advirgo-design', 'ce-design'])
 
-'''
-known_psds = dict((name, PSD(psd['freqs'], psd['vals'])) for name, psd in \
-    [
-        ('aLIGO', psds.aLIGO),
-        ('aLIGO_O1', psds.aLIGO_O1),
-        ('aLIGO_O2', psds.aLIGO_O2),
-        ('aLIGO_O3', psds.aLIGO_O3),
-        ('aLIGO_design', psds.aLIGO_design),
-        ('aPlus', psds.aPlus),
-        ('aPlus_sqzonly', psds.aPlus_sqzonly),
-        ('aVirgo', psds.aVirgo),
-        ('aVirgo_sqz', psds.aVirgo_sqz),
-        ('aVirgo_wb', psds.aVirgo_wb),
-        ('CE', psds.CE),
-        ('CE_wb', psds.CE_wb),
-        ('ET', psds.ET),
-        ('Voyager', psds.Voyager),
-    ]
-)
-'''
-
-#------------------------
+#-------------------------------------------------
 
 KNOWN_PSDS = sorted(PSDS.keys())

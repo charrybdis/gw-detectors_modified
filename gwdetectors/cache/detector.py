@@ -4,8 +4,9 @@ __author__ = "Reed Essick <reed.essick@gmail.com>"
 
 #-------------------------------------------------
 
-from .orientation import *
-from .psd import *
+from .orientation import DETECTOR_ORIENTATIONS
+from .psd import PSDS
+from gwdetectors.detector import TwoArmDetector
 
 #-------------------------------------------------
 
@@ -14,11 +15,24 @@ from .psd import *
 NAME_TEMPLATE = "%s_%s"
 DETECTORS = dict()
 
-### iterate and construct all possible combinations of known orientations and PSDs
-for orientation_name, (instantiator, location, arms) in DETECTOR_ORIENTATIONS.items():
-    for psd_name, psd in PSDS.items():
-        _ = instantiator(NAME_TEMPLATE%(orientation_name, psd_name), psd, location, *arms)
-        detectors[_.name] = _
+### construct specific combinations of known orientations and PSDs
+
+for orientations, psds in [
+        (('L', 'H'), ('aligo-design', 'aplus-design',)), ### LLO and LHO with design sensitivities
+        (('V',), ('advirgo-design',)),                   ### Virgo with design sensitivity
+        (('CE@L', 'CE@H',), ('ce-design',)),             ### CE at LLO, LHO location (but longer arms) with CE PSD
+    ]:
+    for orientation in orientations:
+        loc, arms = DETECTOR_ORIENTATIONS[orientation]
+        for psd in psds:
+            name = NAME_TEMPLATE%(orientation, psd)
+            DETECTORS[name] = TwoArmDetector(
+                name,
+                PSDS[psd],
+                loc,
+                arms,
+                long_wavelength_approximation=False, ### NOTE: always assume the long-wavelength approximation
+            )                                        ### is False for the default detectors
 
 #------------------------
 
