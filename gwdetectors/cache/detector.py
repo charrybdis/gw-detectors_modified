@@ -6,7 +6,6 @@ __author__ = "Reed Essick <reed.essick@gmail.com>"
 
 from .orientation import DETECTOR_ORIENTATIONS
 from .psd import PSDS
-from gwdetectors.detector import TwoArmDetector
 
 #-------------------------------------------------
 
@@ -23,10 +22,10 @@ for orientations, psds in [
         (('CE@L', 'CE@H',), ('ce-design',)),             ### CE at LLO, LHO location (but longer arms) with CE PSD
     ]:
     for orientation in orientations:
-        loc, arms = DETECTOR_ORIENTATIONS[orientation]
+        instantiator, loc, arms = DETECTOR_ORIENTATIONS[orientation]
         for psd in psds:
             name = NAME_TEMPLATE%(orientation, psd)
-            DETECTORS[name] = TwoArmDetector(
+            DETECTORS[name] = instantiator(
                 name,
                 PSDS[psd],
                 loc,
