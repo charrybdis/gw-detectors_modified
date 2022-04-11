@@ -200,7 +200,7 @@ coord=geographic --> interpret (azimuth, pole) as (phi, theta) in Earth-fixed co
         """
         sinTheta = np.sin(theta)
         n = -np.array([np.cos(phi)*sinTheta, np.sin(phi)*sinTheta, np.cos(theta)]) ### direction of propogation
-        return np.sum(self.location*n)
+        return self.location[0]*n[0] + self.location[1]*n[1] + self.location[2]*n[2]
 
     def project(self, freqs, hp, hx, geocent_time, azimuth, pole, psi, coord=DEFAULT_COORD):
         Fp, Fx = self.response(freqs, geocent_time, azimuth, pole, psi, coord=coord)
