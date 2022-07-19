@@ -1,0 +1,200 @@
+#!/usr/bin/env python3
+
+"""a quick script to test that I can load in an arbitrary detector from a config file and then draw noise realizations from a PSD
+"""
+__author__ = "Reed Essick (reed.essick@gmail.com)"
+
+#-------------------------------------------------
+
+import os
+
+import numpy as np
+
+import matplotlib
+matplotlib.use("Agg")
+from matplotlib import pyplot as plt
+
+from argparse import ArgumentParser
+
+### non-standard libraries
+import gwdetectors
+
+#-------------------------------------------------
+
+parser = ArgumentParser()
+
+parser.add_argument('--config', default='network.ini', type=str)
+
+parser.add_argument('--fmin', default=8, type=float,
+    help='the minimum frequency used when plotting noise realizations')
+parser.add_argument('--fmax', default=2048, type=float,
+    help='the maximun frequency used when plotting noise realizations')
+parser.add_argument('--deltaf', default=1./64, type=float,
+    help='the frequency spacing used when plotting noise realizations')
+
+parser.add_argument('-n', '--num-noise-realizations', default=1, type=int)
+parser.add_argument('--seed', default=None, type=int)
+
+parser.add_argument('-v', '--verbose', default=False, action='store_true')
+
+parser.add_argument('-o', '--output-dir', default='.', type=str)
+parser.add_argument('-t', '--tag', default='', type=str)
+
+args = parser.parse_args()
+
+os.makedirs(args.output_dir, exist_ok=True)
+
+if args.tag:
+    args.tag = "_"+args.tag
+
+#-------------------------------------------------
+
+if args.seed is not None:
+    if args.verbose:
+        print('setting numpy.random.seed = %d'%args.seed)
+    np.random.seed(args.seed)
+
+#-------------------------------------------------
+
+### load detector network from a config file
+
+network = gwdetectors.parse(args.config, verbose=args.verbose, exit_on_exception=True)
+
+#------------------------
+
+### draw noise realizations from the PSD
+freqs = np.arange(args.fmin, args.fmax, args.deltaf)
+
+figtmp = os.path.join(
+    args.output_dir,
+    os.path.basename(__file__)+args.tag+'-%d.png'
+)
+
+estimates = np.zeros((len(network), len(freqs)), dtype=float)
+
+for ind in range(args.num_noise_realizations):
+    if args.verbose:
+        print('processing noise realization : %d'%ind)
+
+    fig = plt.figure()
+    ax_real = plt.subplot(2,2,1)
+    ax_imag = plt.subplot(2,2,3)
+    ax_amp = plt.subplot(2,2,2)
+    ax_phs = plt.subplot(2,2,4)
+
+    # iterate through detectors
+    for dnd, detector in enumerate(network.detectors):
+        if args.verbose:
+            print('    drawing noise for : '+detector.name)
+        noise = detector.draw_noise(freqs)
+
+        kwargs = dict(label=detector.name, alpha=0.5)
+
+        color = ax_real.plot(freqs, noise.real, **kwargs)[0].get_color()
+        ax_imag.plot(freqs, noise.imag, **kwargs)
+        ax_amp.plot(freqs, np.abs(noise), **kwargs)
+        ax_phs.plot(freqs, np.arctan2(noise.imag, noise.real), **kwargs)
+
+        # this is the correct normalization for this plot.
+        # see note below
+        ax_amp.plot(freqs, (detector.psd(freqs)/(2*args.deltaf))**0.5, color=color)
+
+        # add noise realization to PSD estimate
+        estimates[dnd] += noise.real**2 + noise.imag**2
+
+    # decorate
+
+    for ax in fig.axes:
+        ax.set_xscale('log')
+        ax.set_xlim(xmin=args.fmin, xmax=args.fmax)
+        ax.tick_params(
+            left=True,
+            right=True,
+            top=True,
+            bottom=True,
+            direction='in',
+            which='both',
+        )
+
+    for ax in [ax_real, ax_amp]:
+        plt.setp(ax.get_xticklabels(), visible=False)
+
+    for ax in [ax_imag, ax_phs]:
+        ax.set_xlabel('frequency [Hz]')
+
+    for ax in [ax_amp, ax_phs]:
+        ax.yaxis.tick_right()
+        ax.yaxis.set_label_position('right')
+
+    ax_real.set_ylabel('$\mathcal{R}\{n\}$')
+
+    ax_imag.set_ylabel('$\mathcal{I}\{n\}$')
+
+    ax_amp.set_ylabel('$|n|$')
+    ax_amp.set_yscale('log')
+
+    ax_phs.set_ylabel('$\mathrm{arg}\{n\}$')
+
+    plt.subplots_adjust(
+        left=0.12,
+        right=0.88,
+        top=0.95,
+        bottom=0.12,
+        hspace=0.10,
+        wspace=0.10,
+    )
+
+    # save
+    figname = figtmp % ind
+    if args.verbose:
+        print('saving : '+figname)
+    fig.savefig(figname)
+    plt.close(fig)
+
+### plot an estimate of the PSD from averaging the noise realizations
+if args.verbose:
+    print('plotting estimates of PSD')
+
+# NOTE:
+# the real and image parts of the noise have variances ~ PSD/(4*deltaf)
+# and "estimates" is the sum of both of them. Thus, we expect PSD ~ (estiamtes/2) * (4*deltaf)
+# see also Eq 6.2a of https://arxiv.org/pdf/gr-qc/0509116.pdf for a related expression
+estimates *= 2 * args.deltaf
+estimates /= args.num_noise_realizations
+
+fig = plt.figure()
+ax = fig.gca()
+
+for dnd, detector in enumerate(network.detectors):
+    kwargs = dict(label=detector.name, alpha=0.5)
+
+    color = ax.plot(freqs, estimates[dnd]**0.5, **kwargs)[0].get_color()
+    ax.plot(freqs, detector.psd(freqs)**0.5, color=color)
+
+# decorate
+
+ax.set_xlabel('frequency [Hz]')
+ax.set_ylabel('Amplitude Spectral Density')
+
+ax.set_yscale('log')
+ax.set_xscale('log')
+ax.set_xlim(xmin=args.fmin, xmax=args.fmax)
+
+ax.tick_params(
+    left=True,
+    right=True,
+    top=True,
+    bottom=True,
+    direction='in',
+    which='both',
+)
+
+# save
+figname = os.path.join(
+    args.output_dir,
+    os.path.basename(__file__)+args.tag+'-overlay.png'
+)
+if args.verbose:
+    print('saving : '+figname)
+fig.savefig(figname)
+plt.close(fig)

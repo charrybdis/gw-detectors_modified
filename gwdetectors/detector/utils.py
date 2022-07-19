@@ -60,9 +60,21 @@ class OneSidedPowerSpectralDensity(object):
         return np.interp(freqs, self.freqs, self.psd)
 
     def draw_noise(self, freqs):
-        amp = np.random.randn(*freqs.shape) * (self(freqs)**0.5) ### FIXME: should really be a chi-squared distrib with 2 degrees of freedom?
-        phs = np.random.rand(*freqs.shape)*2*np.pi
-        return amp*np.cos(phs) + 1j*amp*np.sin(phs)
+        """\
+draw real and imaginary parts of frequency-domain noise from the Whittle likelihood described by this PSD.
+Assumes frequency array is regularly spaced
+        """
+        df = freqs[1] - freqs[0] ### assume frequency array is regularly spaced
+        stdv = (self(freqs)/(4*df))**0.5 ### compute the standard deviation of the real, imag noise at each frequency
+                                         ### assuming this frequency spacing
+
+        # draw noise from likelihood model
+        real, imag = np.random.normal(size=(2, len(freqs))) # Gaussian, independent for real and imag parts
+        real *= stdv # scale these by the psd
+        imag *= stdv
+
+        # return
+        return real + 1j*imag
 
 #-------------------------------------------------
 
@@ -177,6 +189,8 @@ coord=geographic --> interpret (azimuth, pole) as (phi, theta) in Earth-fixed co
     @staticmethod
     def _geographic_unphased_response(freqs, phi, theta, psi, arms, long_wavelength_approximation=False):
         """the detector response when angles defining direction to source (phi, theta) are provided in Earth-fixed coordinates \
+        assumes phi, theta, psi have the same shape
+        returns an array with shape : (len(freqs), len(phi))
         NOTE: Child classes should overwrite this!
         """
         raise NotImplementedError('Child classes should overwrite this depending on the number of arms!')
@@ -187,8 +201,10 @@ coord=geographic --> interpret (azimuth, pole) as (phi, theta) in Earth-fixed co
 
     def _geographic_phase(self, freqs, phi, theta):
         """compute the phase shift relative to geocenter. Assumes angles are specified in geographic coordinates (pointing towards the source from geocenter)
+        assumes phi, theta, psi have the same shape
+        returns an array with shape : (len(freqs), len(phi))
         """
-        return np.exp(-2j*np.pi * freqs * self._geographic_dt(phi, theta))
+        return np.exp(-2j*np.pi * np.outer(freqs, self._geographic_dt(phi, theta)))
 
     def dt(self, geocent_time, azimuth, pole, coord=DEFAULT_COORD):
         """return the delay relative to geocenter
@@ -203,8 +219,14 @@ coord=geographic --> interpret (azimuth, pole) as (phi, theta) in Earth-fixed co
         return self.location[0]*n[0] + self.location[1]*n[1] + self.location[2]*n[2]
 
     def project(self, freqs, hp, hx, geocent_time, azimuth, pole, psi, coord=DEFAULT_COORD):
+        """compute the detector response in the frequency domain and project astrophysical signals into readout \
+        assumes:
+            freqs, hp, hx are vectors with the same length
+            geocent_time, azimuth, pole, psi are scalars
+            coord is either "celestial" or "geographic"
+        """
         Fp, Fx = self.response(freqs, geocent_time, azimuth, pole, psi, coord=coord)
-        return hp*Fp + hx*Fx
+        return hp*Fp[:,0] + hx*Fx[:,0] ### self.response returns shape (len(freq), len(azimuth))
 
     #---
 
