@@ -11,7 +11,7 @@ __author__ = "Reed Essick <reed.essick@gmail.com>"
 
 import numpy as np
 
-from .detector import (Detector, DEFAULT_COORD)
+from .utils import (Detector, DEFAULT_COORD)
 
 #-------------------------------------------------
 
@@ -53,13 +53,17 @@ class TwoArmDetector(Detector):
     @staticmethod
     def _geographic_unphased_response(freqs, phi, theta, psi, xarm_yarm, long_wavelength_approximation=True):
         '''detector response for 2 arms, where we take the difference between the arms as the signal
+        assumes phi, theta, psi have the same shape
+        returns an array with shape : (len(freqs), len(phi))
         '''
         assert len(xarm_yarm) == 2, 'must supply exactly 2 arms'
         xarm, yarm = xarm_yarm
+
         if long_wavelength_approximation:
             Fp, Fx = np.empty((2, len(freqs)), dtype=float)
-            Fp[:], Fx[:] = lwa_antenna_response(phi, theta, psi, xarm, yarm) ### return floats, and we put those into an array
-            return Fp, Fx
+            Fp, Fx = lwa_antenna_response(phi, theta, psi, xarm, yarm) ### return an array
+            ones = np.ones_like(freqs, dtype=float)
+            return np.outer(ones, Fp), np.outer(ones, Fx) ### broadcast into correct shape
 
         else:
             return antenna_response(freqs, phi, theta, psi, xarm, yarm)
@@ -70,14 +74,9 @@ def lwa_antenna_response(phi, theta, psi, xarm, yarm):
     """\
     computes the antenna patterns for detector arms oriented along xarm and yarm (cartesian 3-vectors) in the long-wavelength approximation
     Antenna patterns are computed accoring to Eqn. B7 from Anderson, et all PhysRevD 63(04) 2003
+
+    returns antenna patterns with the same shape as phi, theta
     """
-    return_float = isinstance(theta, (int, float))
-
-    if return_float:
-        theta = [theta]
-        phi = [phi]
-        psi = [psi]
-
     # compute angles defining direction to the source frame
     cos_theta = np.cos(theta)
     sin_theta = np.sin(theta)
@@ -113,10 +112,6 @@ def lwa_antenna_response(phi, theta, psi, xarm, yarm):
             Fp += (Xi*Xj - Yi*Yj)*Dij ### add contributions to antenna responses
             Fx += (Xi*Yj + Yi*Xj)*Dij
 
-    if return_float:
-        Fp = Fp[0] # return a scalar instead of an array of the same length as theta
-        Fx = Fx[0]
-
     return Fp, Fx
 
 #------------------------
@@ -127,10 +122,11 @@ def antenna_response(freqs, phi, theta, psi, xarm, yarm):
     xarm and yarm are cartesian 3-vectors defining the directions of the arms. Their norm should be their length in light-seconds.
 
     based on the expressions within https://journals.aps.org/prd/abstract/10.1103/PhysRevD.96.084004
-    '''
-    return_float = isinstance(theta, (int, float))
 
-    if return_float:
+    assumes phi, theta, psi have the same shape
+    returns an array with shape : (len(freqs), len(phi))
+    '''
+    if isinstance(theta, (int, float)):
         theta = [theta]
         phi = [phi]
         psi = [psi]
@@ -180,10 +176,6 @@ def antenna_response(freqs, phi, theta, psi, xarm, yarm):
 
             Fp += Dij * (ex_wavei*ex_wavej - ey_wavei*ey_wavej) ### multiply by matrix element from wave polarizations
             Fx += Dij * (ex_wavei*ey_wavej + ey_wavei*ex_wavej)
-
-    if return_float:
-        Fp = Fp[:,0] ### an array with shape : (len(freqs),)
-        Fx = Fx[:,0]
 
     return Fp, Fx
 

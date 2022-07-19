@@ -4,5 +4,5 @@ __author__ = "Reed Essick <reed.essick@gmail.com>"
 
 #-------------------------------------------------
 
-from .detector import *
+from .utils import *
 from .twoarmdetector import *
