@@ -251,19 +251,77 @@ coord=geographic --> interpret (azimuth, pole) as (phi, theta) in Earth-fixed co
 
     #---
 
-    def snr(self, freqs, hp, hx, geocent_time, azimuth, pole, psi, coord=DEFAULT_COORD):
-        h = self.project(freqs, hp, hx, geocent_time, azimuth, pole, psi, coord=coord)
+    def snr(self, *args, **kwargs):
+        """computes the optimal SNR. Function takes the same args, kwargs as project()
+        """
+        h = self.project(*args, **kwargs)
         return self._inner_product(freqs, h, h).real**0.5
 
     def _inner_product(self, freqs, a, b):
         return 4*np.trapz(np.conjugate(a)*b/self.psd(freqs), x=freqs)
 
-    def loglikelihood(self, freqs, data, hp, hx, geocent_time, azimuth, pole, psi, coord=DEFAULT_COORD):
-        h = self.project(freqs, hp, hx, geocent_time, azimuth, pole, psi, coord=coord)
+    def loglikelihood(
+            self,
+            freqs,
+            data,
+            geocent_time,
+            azimuth,
+            pole,
+            psi,
+            coord=DEFAULT_COORD,
+            hp=None,  ### "plus" tensor mode
+            hx=None,  ### "cross" tensor mode
+            hvx=None, ### "x" vector mode
+            hvy=None, ### "y" vector mode
+            hb=None,  ### "breathing" scalar mode
+            hl=None,  ### "longitudinal" scalar mode
+        ):
+        h = self.project(
+            freqs,
+            geocent_time,
+            azimuth,
+            pole,
+            psi,
+            coord=coord,
+            hp=hp,
+            hx=hx,
+            hvx=hvx,
+            hvy=hvy,
+            hb=hb,
+            hl=hl,
+        )
         return -0.5*self._inner_product(freqs, data-h, data-h).real
 
-    def filter(self, freqs, data, hp, hx, geocent_time, azimuth, pole, psi, coord=DEFAULT_COORD):
-        h = self.project(freqs, hp, hx, geocent_time, azimuth, pole, psi, coord=coord)
+    def filter(
+            self,
+            freqs,
+            data,
+            geocent_time,
+            azimuth,
+            pole,
+            psi,
+            coord=DEFAULT_COORD,
+            hp=None,  ### "plus" tensor mode
+            hx=None,  ### "cross" tensor mode
+            hvx=None, ### "x" vector mode
+            hvy=None, ### "y" vector mode
+            hb=None,  ### "breathing" scalar mode
+            hl=None,  ### "longitudinal" scalar mode
+        ):
+        h = self.project(
+            freqs,
+            geocent_time,
+            azimuth,
+            pole,
+            psi,
+            coord=coord,
+            hp=hp,
+            hx=hx,
+            hvx=hvx,
+            hvy=hvy,
+            hb=hb,
+            hl=hl,
+        )
         h /= self._inner_product(freqs, h, h).real**0.5
         return self._inner_product(freqs, data, h)
 
