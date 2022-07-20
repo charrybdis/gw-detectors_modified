@@ -53,165 +53,150 @@ class TwoArmDetector(Detector):
     @staticmethod
     def _geographic_unphased_response(freqs, phi, theta, psi, xarm_yarm, long_wavelength_approximation=True):
         '''detector response for 2 arms, where we take the difference between the arms as the signal
+        theta, phi, psi, and freqs should all be the same length np.ndarray objects if they are not floats
+        xarm_yarm = (xarm, yarm) are cartesian 3-vectors defining the directions of the arms. Their norm should be their length in light-seconds.
+
+        frequency-dependent response is based on the expressions within https://journals.aps.org/prd/abstract/10.1103/PhysRevD.96.084004
+        polarization tensors are based on expressions within https://journals.aps.org/prd/abstract/10.1103/PhysRevD.91.082002
+            
         assumes phi, theta, psi have the same shape
         returns an array with shape : (len(freqs), len(phi))
         '''
         assert len(xarm_yarm) == 2, 'must supply exactly 2 arms'
         xarm, yarm = xarm_yarm
 
-        if long_wavelength_approximation:
-            Fp, Fx = np.empty((2, len(freqs)), dtype=float)
-            Fp, Fx = lwa_antenna_response(phi, theta, psi, xarm, yarm) ### return an array
-            ones = np.ones_like(freqs, dtype=float)
-            return np.outer(ones, Fp), np.outer(ones, Fx) ### broadcast into correct shape
+        if isinstance(theta, (int, float)):
+            theta = [theta]
+            phi = [phi]
+            psi = [psi]
+
+        ### compute the trigonometric functions only once
+        cosTheta = np.cos(theta)
+        sinTheta = np.sin(theta)
+        cosPhi = np.cos(phi)
+        sinPhi = np.sin(phi)
+        cosPsi = np.cos(psi)
+        sinPsi = np.sin(psi)
+
+        ### compute unit vectors in Earth-Fixed frame from the wave-frame
+        ex_wave = np.array([
+            sinPhi*cosPsi - sinPsi*cosPhi*cosTheta,
+            -cosPhi*cosPsi - sinPsi*sinPhi*cosTheta,
+            sinPsi*sinTheta,
+        ])
+
+        ey_wave = np.array([
+            -sinPhi*sinPsi - cosPsi*cosPhi*cosTheta,
+            cosPhi*sinPsi - cosPsi*sinPhi*cosTheta,
+            sinTheta*cosPsi,
+        ])
+
+        ez_wave = np.array([ # take cross product by hand : Z = X cross Y
+            ex_wave[1]*ey_wave[2] - ex_wave[2]*ey_wave[1],
+            ex_wave[2]*ey_wave[0] - ex_wave[0]*ey_wave[2],
+            ex_wave[0]*ey_wave[1] - ex_wave[1]*ey_wave[0],
+        ])
+
+        ### compute cartesian vector for the line-of-sight to the source
+        n = np.array([sinTheta*cosPhi, sinTheta*sinPhi, cosTheta])
+        n = np.transpose(n)
+
+        ### compute detector matrix
+
+        # convert xarm, yarm to what we need
+        Tx = np.sum(xarm**2)**0.5
+        ex = xarm/Tx
+
+        Ty = np.sum(yarm**2)**0.5
+        ey = yarm/Ty
+
+        if long_wavelength_approximation: # compute the detector matrix at zero frequency
+            phsx = phsy = np.zeros_like(freqs, dtype=float)
 
         else:
-            return antenna_response(freqs, phi, theta, psi, xarm, yarm)
+            # freqsT = 2j*np.pi*freqs*T ### this convention should match what is in LAL : x(f) = \int dt e^{-2\pi i f t} x(t)
+            phsx = 2j*np.pi*freqs*Tx
+            phsy = 2j*np.pi*freqs*Ty
 
-#-------------------------------------------------
+        Dxx = TwoArmDetector.n2D(phsx, np.dot(n, ex)) ### returns an array with shape : len(freqs), len(theta)
+        Dyy = TwoArmDetector.n2D(phsy, np.dot(n, ey))
 
-def lwa_antenna_response(phi, theta, psi, xarm, yarm):
-    """\
-    computes the antenna patterns for detector arms oriented along xarm and yarm (cartesian 3-vectors) in the long-wavelength approximation
-    Antenna patterns are computed accoring to Eqn. B7 from Anderson, et all PhysRevD 63(04) 2003
+        ### assemble these parts into antenna responses
+        F_plus = 0.0
+        F_cross = 0.0
+        F_vecx = 0.0
+        F_vecy = 0.0
+        F_breath = 0.0
+        F_long = 0.0
 
-    returns antenna patterns with the same shape as phi, theta
-    """
-    # compute angles defining direction to the source frame
-    cos_theta = np.cos(theta)
-    sin_theta = np.sin(theta)
-    cos_phi = np.cos(phi)
-    sin_phi = np.sin(phi)
-    cos_psi = np.cos(psi)
-    sin_psi = np.sin(psi)
+        for i in range(3):
+            exi = ex[i]
+            eyi = ey[i]
+            ex_wavei = ex_wave[i]
+            ey_wavei = ey_wave[i]
+            ez_wavei = ez_wave[i]
 
-    X = (sin_phi*cos_psi - sin_psi*cos_phi*cos_theta, -cos_phi*cos_psi - sin_psi*sin_phi*cos_theta, sin_psi*sin_theta)
-    Y = (-sin_phi*sin_psi - cos_psi*cos_phi*cos_theta, cos_phi*sin_psi - cos_psi*sin_phi*cos_theta, sin_theta*cos_psi)
+            for j in range(3):
+                ex_wavej = ex_wave[j]
+                ey_wavej = ey_wave[j]
+                ez_wavej = ez_wave[j]
 
-    ### convert arms into unit vectors
-    nx = np.array(xarm)
-    nx /= np.sum(nx**2)**0.5
+                ### compute matrix element for detector matrix
+                Dij = Dxx*exi*ex[j] - Dyy*eyi*ey[j]
 
-    ny = np.array(yarm)
-    ny /= np.sum(ny**2)**0.5
+                ### multiply by matrix element from wave polarizations
 
-    ### iterate over x,y,z to compute F+ and Fx
-    ### NOTE: direct iteration has been shown to be faster than array logic via np.outer
-    Fp = 0.
-    Fx = 0.
-    for i in range(3):
-        nx_i = nx[i]
-        ny_i = ny[i]
-        Xi = X[i]
-        Yi = Y[i]
-        for j in range(3):
-            Xj = X[j]
-            Yj = Y[j]
-            Dij = 0.5*(nx_i*nx[j] - ny_i*ny[j]) ### detector matrix
+                # tensor polarizations
+                F_plus += Dij * (ex_wavei*ex_wavej - ey_wavei*ey_wavej)
+                F_cross += Dij * (ex_wavei*ey_wavej + ey_wavei*ex_wavej)
 
-            Fp += (Xi*Xj - Yi*Yj)*Dij ### add contributions to antenna responses
-            Fx += (Xi*Yj + Yi*Xj)*Dij
+                # vector polarizations
+                F_vecx += Dij * (ex_wavei*ez_wavej + ez_wavei*ex_wavej)
+                F_vecy += Dij * (ey_wavei*ez_wavej + ez_wavei*ey_wavej)
 
-    return Fp, Fx
+                # scalar polarizations
+                F_breath += Dij * (ex_wavei*ex_wavej + ey_wavei*ey_wavej)
+                F_long += Dij * ez_wavei*ez_wavej # normalization included outside loop
 
-#------------------------
+        # add normalization for F_long
+        F_long /= 2**0.5
 
-def antenna_response(freqs, phi, theta, psi, xarm, yarm):
-    '''\
-    theta, phi, psi, and freqs should all be the same length np.ndarray objects if they are not floats
-    xarm and yarm are cartesian 3-vectors defining the directions of the arms. Their norm should be their length in light-seconds.
+        return F_plus, F_cross, F_vecx, F_vecy, F_breath, F_long
 
-    based on the expressions within https://journals.aps.org/prd/abstract/10.1103/PhysRevD.96.084004
+    @staticmethod
+    def n2D(freqsT, N):
+        '''
+        helper function that returns the part of the frequency dependence that depends on the arm's directions
+        assumes freqsT = 2j*np.pi*freqs*T
 
-    assumes phi, theta, psi have the same shape
-    returns an array with shape : (len(freqs), len(phi))
-    '''
-    if isinstance(theta, (int, float)):
-        theta = [theta]
-        phi = [phi]
-        psi = [psi]
+        based on Eq. 4 in https://journals.aps.org/prd/abstract/10.1103/PhysRevD.96.084004
+        '''
+        if isinstance(freqsT, (int, float, complex)):
+            if freqsT==0:
+                return 0.5*np.ones_like(N, dtype=complex)
 
-    ### compute the trigonometric functions only once
-    cosTheta = np.cos(theta)
-    sinTheta = np.sin(theta)
-    cosPhi = np.cos(phi)
-    sinPhi = np.sin(phi)
-    cosPsi = np.cos(psi)
-    sinPsi = np.sin(psi)
+        elif np.all(freqsT==0):
+            return 0.5*np.ones((len(freqsT), len(N)), dtype=complex)
 
-    ### compute unit vectors in Earth-Fixed frame from the wave-frame
-    ex_wave = np.array([sinPhi*cosPsi - sinPsi*cosPhi*cosTheta, -cosPhi*cosPsi - sinPsi*sinPhi*cosTheta, sinPsi*sinTheta])
-    ey_wave = np.array([-sinPhi*sinPsi - cosPsi*cosPhi*cosTheta, cosPhi*sinPsi - cosPsi*sinPhi*cosTheta, sinTheta*cosPsi])
+        n = np.outer(np.ones_like(freqsT), N)
+        freqsT = np.outer(freqsT, np.ones_like(N))
 
-    ### compute cartesian vector for the line-of-sight to the source
-    n = np.array([sinTheta*cosPhi, sinTheta*sinPhi, cosTheta])
-    n = np.transpose(n)
+        ans = np.zeros_like(freqsT, dtype=complex)
 
-    ### compute detector matrix
+        # handle f=0 as special case
+        truth = freqsT == 0
+        ans[truth] = 0.5
 
-    # convert xarm, yarm to what we need
-    Tx = np.sum(xarm**2)**0.5
-    ex = xarm/Tx
+        # handle f!=0 for the rest
+        truth = np.logical_not(truth)
 
-    Ty = np.sum(yarm**2)**0.5
-    ey = yarm/Ty
+        # add the first term
+        ans[truth] += np.where(n[truth]==1, freqsT[truth], (1 - np.exp(-freqsT[truth]*(1 - n[truth]))) / (1 - n[truth]))
 
-    # factor of 1/2 is for normalization
-    # freqsT = 2j*np.pi*freqs*T ### this convention should match what is in LAL : x(f) = \int dt e^{-2\pi i f t} x(t)
-    Dxx = n2D(2j*np.pi*freqs*Tx, np.dot(n, ex)) ### returns an array with shape : len(freqs), len(theta)
-    Dyy = n2D(2j*np.pi*freqs*Ty, np.dot(n, ey))
+        # add the second term
+        ans[truth] += -np.exp(-2*freqsT[truth]) * np.where(n[truth]==-1, -freqsT[truth], (1 - np.exp(freqsT[truth]*(1 + n[truth])))/(1 + n[truth]))
 
-    ### assemble these parts into antenna responses
-    Fp = 0.
-    Fx = 0.
-    for i in range(3):
-        exi = ex[i]
-        eyi = ey[i]
-        ex_wavei = ex_wave[i]
-        ey_wavei = ey_wave[i]
-        for j in range(3):
-            ex_wavej = ex_wave[j]
-            ey_wavej = ey_wave[j]
-            Dij = Dxx * exi*ex[j] - Dyy * eyi*ey[j] ### compute matrix element for detector matrix
+        # multiply by the prefactor
+        ans[truth] /= 4*freqsT[truth]
 
-            Fp += Dij * (ex_wavei*ex_wavej - ey_wavei*ey_wavej) ### multiply by matrix element from wave polarizations
-            Fx += Dij * (ex_wavei*ey_wavej + ey_wavei*ex_wavej)
-
-    return Fp, Fx
-
-def n2D(freqsT, N):
-    '''
-    helper function that returns the part of the frequency dependence that depends on the arm's directions
-    assumes freqsT = 2j*np.pi*freqs*T
-
-    based on Eq. 4 in https://journals.aps.org/prd/abstract/10.1103/PhysRevD.96.084004
-    '''
-    if isinstance(freqsT, (int, float, complex)):
-        if freqsT==0:
-            return 0.5*np.ones_like(N, dtype=complex)
-
-    elif np.all(freqsT==0):
-        return 0.5*np.ones((len(freqsT), len(N)), dtype=complex)
-
-    n = np.outer(np.ones_like(freqsT), N)
-    freqsT = np.outer(freqsT, np.ones_like(N))
-
-    ans = np.zeros_like(freqsT, dtype=complex)
-
-    # handle f=0 as special case
-    truth = freqsT == 0
-    ans[truth] = 0.5
-
-    # handle f!=0 for the rest
-    truth = np.logical_not(truth)
-
-    # add the first term
-    ans[truth] += np.where(n[truth]==1, freqsT[truth], (1 - np.exp(-freqsT[truth]*(1 - n[truth]))) / (1 - n[truth]))
-
-    # add the second term
-    ans[truth] += -np.exp(-2*freqsT[truth]) * np.where(n[truth]==-1, -freqsT[truth], (1 - np.exp(freqsT[truth]*(1 + n[truth])))/(1 + n[truth]))
-
-    # multiply by the prefactor
-    ans[truth] /= 4*freqsT[truth]
-
-    return ans
+        return ans
