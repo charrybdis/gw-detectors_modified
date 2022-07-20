@@ -218,15 +218,36 @@ coord=geographic --> interpret (azimuth, pole) as (phi, theta) in Earth-fixed co
         n = -np.array([np.cos(phi)*sinTheta, np.sin(phi)*sinTheta, np.cos(theta)]) ### direction of propogation
         return self.location[0]*n[0] + self.location[1]*n[1] + self.location[2]*n[2]
 
-    def project(self, freqs, hp, hx, geocent_time, azimuth, pole, psi, coord=DEFAULT_COORD):
+    def project(
+            self,
+            freqs,
+            geocent_time,
+            azimuth,
+            pole,
+            psi,
+            coord=DEFAULT_COORD,
+            hp=None,  ### "plus" tensor mode
+            hx=None,  ### "cross" tensor mode
+            hvx=None, ### "x" vector mode
+            hvy=None, ### "y" vector mode
+            hb=None,  ### "breathing" scalar mode
+            hl=None,  ### "longitudinal" scalar mode
+        ):
         """compute the detector response in the frequency domain and project astrophysical signals into readout \
         assumes:
             freqs, hp, hx are vectors with the same length
             geocent_time, azimuth, pole, psi are scalars
             coord is either "celestial" or "geographic"
         """
-        Fp, Fx = self.response(freqs, geocent_time, azimuth, pole, psi, coord=coord)
-        return hp*Fp[:,0] + hx*Fx[:,0] ### self.response returns shape (len(freq), len(azimuth))
+        # compute antenna responses
+        Fp, Fx, Fvx, Fvy, Fb, Fl = self.response(freqs, geocent_time, azimuth, pole, psi, coord=coord)[:2]
+
+        # iterate and add contributions from each polarization that is present
+        ans = 0.0
+        for h, F in [(hp, Fp), (hx, Fx), (hvx, Fvx), (hvy, Fvy), (hb, Fb), (hl, Fl)]:
+            if h is not None:
+                ans += h*F[:,0] ### self.response returns shape (len(freq), len(azimuth))
+        return ans
 
     #---
 

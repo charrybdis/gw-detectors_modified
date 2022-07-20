@@ -70,72 +70,32 @@ for detector in network.detectors:
     if args.verbose:
         print('computing detector response for : '+detector.name)
 
-    fp, fx = detector.response(freqs, t0, AZIMUTH, POLE, PSI, coord='geographic')
+    fp, fx, fvx, fvy, fb, fl = detector.response(freqs, t0, AZIMUTH, POLE, PSI, coord='geographic')
 
     for fnd, freq in enumerate(freqs):
         if args.verbose:
             print('  plotting freq=%.3f Hz'%(freq))
 
-#        fp, fx = detector.response(freq, t0, AZIMUTH, POLE, PSI, coord='geographic')
-#        Fp = np.transpose(fp.reshape(shape))
-#        Fx = np.transpose(fx.reshape(shape))
-
+        # tensor modes
         Fp = np.transpose(fp[fnd].reshape(shape))
         Fx = np.transpose(fx[fnd].reshape(shape))
 
-        fig = plt.figure(figsize=(8.0, 3.5))
+        # vector modes
+        Fvx = np.transpose(fvx[fnd].reshape(shape))
+        Fvy = np.transpose(fvy[fnd].reshape(shape))
 
-        axp_amp = plt.subplot(2,3,1, projection='mollweide')
-        axp_phs = plt.subplot(2,3,4, projection='mollweide')
+        # scalar modes
+        Fb = np.transpose(fb[fnd].reshape(shape))
+        Fl = np.transpose(fl[fnd].reshape(shape))
 
-        axx_amp = plt.subplot(2,3,2, projection='mollweide')
-        axx_phs = plt.subplot(2,3,5, projection='mollweide')
+        ### now plot
 
-        ax_amp = plt.subplot(1,3,3, projection='mollweide')
+        fig = plt.figure(figsize=(20.0, 3.5))
 
-        # plot detector response
+        # plot RMS tensorial detector response for reference
 
-        axp_amp.pcolormesh(
-            azimuth,
-            0.5*np.pi - pole,
-            np.abs(Fp),
-#            vmin=0,
-#            vmax=+1,
-            rasterized=True,
-            cmap=args.color_map,
-        )
-
-        axp_phs.pcolormesh(
-            azimuth,
-            0.5*np.pi - pole,
-            np.arctan2(Fp.imag, Fp.real),
-#            vmin=-np.pi,
-#            vmax=+np.pi,
-            rasterized=True,
-            cmap=args.color_map,
-        )
-
-        axx_amp.pcolormesh(
-            azimuth,
-            0.5*np.pi - pole,
-            np.abs(Fx),
-#            vmin=0,
-#            vmax=+1,
-            rasterized=True,
-            cmap=args.color_map,
-        )
-
-        axx_phs.pcolormesh(
-            azimuth,
-            0.5*np.pi - pole,
-            np.arctan2(Fx.imag, Fx.real),
-#            vmin=-np.pi,
-#            vmax=+np.pi,
-            rasterized=True,
-            cmap=args.color_map,
-        )
-
-        ax_amp.pcolormesh(
+        ax = plt.subplot(1,7,1, projection='mollweide')
+        ax.pcolormesh(
             azimuth,
             0.5*np.pi - pole,
             (np.abs(Fp)**2 + np.abs(Fx)**2)**0.5,
@@ -144,6 +104,42 @@ for detector in network.detectors:
             rasterized=True,
             cmap=args.color_map,
         )
+        ax.set_title('$\sqrt{|F_+|^2 + |F_\\times|^2}$')
+
+        # iterate through individual polarizations
+        for pnd, (F, label) in enumerate([
+                (Fp, 'F_+'),
+                (Fx, 'F_\\times'),
+                (Fvx, 'F_x'),
+                (Fvy, 'F_y'),
+                (Fb, 'F_b'),
+                (Fl, 'F_l'),
+            ]):
+
+            ax_amp = plt.subplot(2,7,2+pnd, projection='mollweide')
+            ax_phs = plt.subplot(2,7,9+pnd, projection='mollweide')
+
+            ax_amp.pcolormesh(
+                azimuth,
+                0.5*np.pi - pole,
+                np.abs(F),
+#                vmin=0,
+#                vmax=+1,
+                rasterized=True,
+                cmap=args.color_map,
+            )
+            ax_amp.set_title('$|%s|$'%label)
+
+            ax_phs.pcolormesh(
+                azimuth,
+                0.5*np.pi - pole,
+                np.arctan2(F.imag, F.real),
+#                vmin=-np.pi,
+#                vmax=+np.pi,
+                rasterized=True,
+                cmap=args.color_map,
+            )
+            ax_phs.set_title('arg $%s$'%label)
 
         # plot arm directions
 
@@ -156,11 +152,6 @@ for detector in network.detectors:
                 ax.plot(a, 0.5*np.pi-p, marker='o', markeredgecolor='k', markerfacecolor='none')
 
         # decorate
-        axp_amp.set_title('$|F_+|$')
-        axp_phs.set_title('arg $F_+$')
-        axx_amp.set_title('$|F_\\times|$')
-        axx_phs.set_title('arg $F_\\times$')
-        ax_amp.set_title('$\sqrt{|F_+|^2 + |F_\\times|^2}$')
 
         for ax in fig.axes:
             ax.grid(True)
@@ -169,15 +160,15 @@ for detector in network.detectors:
 
         fig.suptitle('%.3f Hz'%freq)
 
-        fig.text(0.95, 0.05, '$\psi=%.3f$'%psi, ha='right', va='bottom')
+        fig.text(0.02, 0.05, '$\psi=%.3f$'%psi, ha='left', va='bottom')
 
         plt.subplots_adjust(
-            left=0.05,
-            right=0.95,
+            left=0.02,
+            right=0.98,
             bottom=0.05,
             top=0.90,
             hspace=0.05,
-            wspace=0.20,
+            wspace=0.10,
         )
 
         # save
