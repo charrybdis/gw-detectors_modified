@@ -19,5 +19,5 @@ setup(
     scripts = glob.glob("bin/*"),
     packages = find_packages(),
     package_data={'':['*csv.gz']}, ### grabs psds stored under gwdetectors.cache
-    requires = [], ### FIXME: specify requirements for numpy, h5py, lalsuite, else?
+    requires = ['numpy'], ### FIXME: specify version? other requirements like lal (for GMST)?
 )
