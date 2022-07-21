@@ -240,7 +240,7 @@ coord=geographic --> interpret (azimuth, pole) as (phi, theta) in Earth-fixed co
             coord is either "celestial" or "geographic"
         """
         # compute antenna responses
-        Fp, Fx, Fvx, Fvy, Fb, Fl = self.response(freqs, geocent_time, azimuth, pole, psi, coord=coord)[:2]
+        Fp, Fx, Fvx, Fvy, Fb, Fl = self.response(freqs, geocent_time, azimuth, pole, psi, coord=coord)
 
         # iterate and add contributions from each polarization that is present
         ans = 0.0
@@ -251,10 +251,10 @@ coord=geographic --> interpret (azimuth, pole) as (phi, theta) in Earth-fixed co
 
     #---
 
-    def snr(self, *args, **kwargs):
+    def snr(self, freqs, *args, **kwargs):
         """computes the optimal SNR. Function takes the same args, kwargs as project()
         """
-        h = self.project(*args, **kwargs)
+        h = self.project(freqs, *args, **kwargs)
         return self._inner_product(freqs, h, h).real**0.5
 
     def _inner_product(self, freqs, a, b):
