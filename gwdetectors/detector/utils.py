@@ -17,6 +17,11 @@ DEFAULT_COORD = 'celestial'
 
 #-------------------------------------------------
 
+def inner_product(freqs, psd, a, b):
+    return 4*np.trapz(np.conjugate(a)*b/psd, x=freqs)
+
+#-------------------------------------------------
+
 ### Power Spectral Density (PSD) objects
 
 class OneSidedPowerSpectralDensity(object):
@@ -59,14 +64,17 @@ class OneSidedPowerSpectralDensity(object):
     def __call__(self, freqs):
         return np.interp(freqs, self.freqs, self.psd)
 
+    def _marginal_variances(self, freqs):
+        df = freqs[1] - freqs[0]  ### assume frequency array is regularly spaced
+        return self(freqs)/(4*df) ### compute the standard deviation of the real, imag noise at each frequency
+                                  ### assuming this frequency spacing
+
     def draw_noise(self, freqs):
         """\
 draw real and imaginary parts of frequency-domain noise from the Whittle likelihood described by this PSD.
 Assumes frequency array is regularly spaced
         """
-        df = freqs[1] - freqs[0] ### assume frequency array is regularly spaced
-        stdv = (self(freqs)/(4*df))**0.5 ### compute the standard deviation of the real, imag noise at each frequency
-                                         ### assuming this frequency spacing
+        stdv = self._marginal_variances(freqs)**0.5
 
         # draw noise from likelihood model
         real, imag = np.random.normal(size=(2, len(freqs))) # Gaussian, independent for real and imag parts
@@ -75,6 +83,14 @@ Assumes frequency array is regularly spaced
 
         # return
         return real + 1j*imag
+
+    def logprob(self, freqs, data):
+        """the probability of obtaining data as a noise realization.
+        Assumes equally spaced frequency samples when computing determinant
+        """
+        df = freqs[1] - freqs[0] ### assume frequency array is regularly spaced when computing determinant
+        return -0.5*inner_product(freqs, self(freqs), data, data).real \
+            -0.5*len(freqs)*np.log(2*np.pi) - 0.5*np.sum(np.log(self._marginal_variances(freqs)))
 
 #-------------------------------------------------
 
@@ -251,79 +267,17 @@ coord=geographic --> interpret (azimuth, pole) as (phi, theta) in Earth-fixed co
 
     #---
 
-    def snr(self, freqs, *args, **kwargs):
+    def snr(self, freqs, strain):
         """computes the optimal SNR. Function takes the same args, kwargs as project()
         """
-        h = self.project(freqs, *args, **kwargs)
-        return self._inner_product(freqs, h, h).real**0.5
+        return inner_product(freqs, self.psd(freqs), strain, strain).real**0.5
 
-    def _inner_product(self, freqs, a, b):
-        return 4*np.trapz(np.conjugate(a)*b/self.psd(freqs), x=freqs)
+    def logprob(self, freqs, data):
+        return self.psd.logprob(freqs, data)
 
-    def loglikelihood(
-            self,
-            freqs,
-            data,
-            geocent_time,
-            azimuth,
-            pole,
-            psi,
-            coord=DEFAULT_COORD,
-            hp=None,  ### "plus" tensor mode
-            hx=None,  ### "cross" tensor mode
-            hvx=None, ### "x" vector mode
-            hvy=None, ### "y" vector mode
-            hb=None,  ### "breathing" scalar mode
-            hl=None,  ### "longitudinal" scalar mode
-        ):
-        h = self.project(
-            freqs,
-            geocent_time,
-            azimuth,
-            pole,
-            psi,
-            coord=coord,
-            hp=hp,
-            hx=hx,
-            hvx=hvx,
-            hvy=hvy,
-            hb=hb,
-            hl=hl,
-        )
-        return -0.5*self._inner_product(freqs, data-h, data-h).real
-
-    def filter(
-            self,
-            freqs,
-            data,
-            geocent_time,
-            azimuth,
-            pole,
-            psi,
-            coord=DEFAULT_COORD,
-            hp=None,  ### "plus" tensor mode
-            hx=None,  ### "cross" tensor mode
-            hvx=None, ### "x" vector mode
-            hvy=None, ### "y" vector mode
-            hb=None,  ### "breathing" scalar mode
-            hl=None,  ### "longitudinal" scalar mode
-        ):
-        h = self.project(
-            freqs,
-            geocent_time,
-            azimuth,
-            pole,
-            psi,
-            coord=coord,
-            hp=hp,
-            hx=hx,
-            hvx=hvx,
-            hvy=hvy,
-            hb=hb,
-            hl=hl,
-        )
-        h /= self._inner_product(freqs, h, h).real**0.5
-        return self._inner_product(freqs, data, h)
+    def filter(self, freqs, data, strain):
+        psd = self.psd(freqs)
+        return inner_product(freqs, psd, data, strain/inner_product(freqs, psd, strain, strain).real**0.5)
 
 #-------------------------------------------------
 
@@ -367,8 +321,8 @@ class Network(object):
     def __len__(self):
         return len(self.detectors)
 
-    def snr(self, *args, **kwargs):
+    def snr(self, freqs, *args, **kwargs):
         snr = 0.
         for detector in self:
-            snr += detector.snr(*args, **kwargs)**2
+            snr += detector.snr(freqs, detector.project(freqs, *args, **kwargs))**2
         return snr**0.5
