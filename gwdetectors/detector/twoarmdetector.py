@@ -46,7 +46,7 @@ class TwoArmDetector(Detector):
         y = -nx[0]*ny[2] + nx[2]*ny[0]
         z = +nx[0]*ny[1] - nx[1]*ny[0]
 
-        return np.arctan2(y, z), np.arccos(z) ### phi, theta
+        return np.arctan2(y, x), np.arccos(z) ### phi, theta
 
     #---
 
