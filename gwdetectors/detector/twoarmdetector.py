@@ -11,7 +11,7 @@ __author__ = "Reed Essick <reed.essick@gmail.com>"
 
 import numpy as np
 
-from .utils import (Detector, DEFAULT_COORD)
+from .utils import (Detector, DEFAULT_COORD, GMST)
 
 #-------------------------------------------------
 
@@ -27,7 +27,7 @@ class TwoArmDetector(Detector):
 
     #---
 
-    def zenith(self, coord=DEFAULT_COORD):
+    def zenith(self, geocent_time, coord=DEFAULT_COORD):
         phi, theta = self._geographic_zenith()
         if coord=='geographic':
             return phi, theta
