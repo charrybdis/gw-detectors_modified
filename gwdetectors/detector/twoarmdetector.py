@@ -159,7 +159,7 @@ class TwoArmDetector(Detector):
                 F_long += Dij * ez_wavei*ez_wavej # normalization included outside loop
 
         # add normalization for F_long
-        F_long /= 2**0.5
+        F_long *= 2**0.5
 
         return F_plus, F_cross, F_vecx, F_vecy, F_breath, F_long
 
