@@ -321,8 +321,18 @@ class Network(object):
     def __len__(self):
         return len(self.detectors)
 
+    #---
+
+    def project(self, *args, **kwargs):
+        return [det.project(*args, **kwargs) for det in self.detectors]
+
+    #---
+
     def snr(self, freqs, *args, **kwargs):
-        snr = 0.
-        for detector in self:
-            snr += detector.snr(freqs, detector.project(freqs, *args, **kwargs))**2
-        return snr**0.5
+        return np.sum([det.snr(freqs, det.project(freqs, *args, **kwargs))**2 for det in self.detectors])**0.5
+
+    def logprob(self, freqs, data):
+        return np.sum([det.logprob(freqs, d) for det, d in zip(self.detectors, data)], axis=0)
+
+    def filter(self, freqs, data, strain):
+        return np.sum([det.filter(freqs, d, strain)**2 for det, d in zip(self.detectors, data)])**0.5

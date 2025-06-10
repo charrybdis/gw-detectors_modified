@@ -98,6 +98,10 @@ class TwoArmDetector(Detector):
         ])
 
         ### compute cartesian vector for the line-of-sight to the source
+
+        ### FIXME! this should be the same as ez_wave, right?
+        ### does this mean there is a sign error here?!?
+
         n = np.array([sinTheta*cosPhi, sinTheta*sinPhi, cosTheta])
         n = np.transpose(n)
 
@@ -114,7 +118,8 @@ class TwoArmDetector(Detector):
             phsx = phsy = np.zeros_like(freqs, dtype=float)
 
         else:
-            # freqsT = 2j*np.pi*freqs*T ### this convention should match what is in LAL : x(f) = \int dt e^{-2\pi i f t} x(t)
+            # freqsT = 2j*np.pi*freqs*T ### this convention should match what is in LAL
+            #     x(f) = \int dt e^{-2\pi i f t} x(t)
             phsx = 2j*np.pi*freqs*Tx
             phsy = 2j*np.pi*freqs*Ty
 
