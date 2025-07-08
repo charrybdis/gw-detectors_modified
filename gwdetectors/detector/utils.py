@@ -279,6 +279,11 @@ coord=geographic --> interpret (azimuth, pole) as (phi, theta) in Earth-fixed co
         psd = self.psd(freqs)
         return inner_product(freqs, psd, data, strain/inner_product(freqs, psd, strain, strain).real**0.5)
 
+    def filter_phi(self, freqs, data, strain): 
+        psd = self.psd(freqs)
+        filter = inner_product(freqs, psd, data, strain/inner_product(freqs, psd, strain, strain).real**0.5)
+        return (filter.real ** 2 + filter.imag ** 2) ** 0.5
+
 #-------------------------------------------------
 
 ### Network of detectors
@@ -336,3 +341,6 @@ class Network(object):
 
     def filter(self, freqs, data, strain):
         return np.sum([det.filter(freqs, d, strain)**2 for det, d in zip(self.detectors, data)])**0.5
+    
+    def mfilter(self, freqs, data, strain):
+        return np.sum([det.filter_phi(freqs, d, s)**2 for det, d, s in zip(self.detectors, data, strain)])**0.5
