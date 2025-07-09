@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.optimize import Bounds, shgo, brute, dual_annealing, fmin
+from gwdetectors.detector.utils import inner_product
 import warnings
 
 #------------------------------------------------------------------------------------------------
@@ -184,6 +185,36 @@ def shgo_max(function, bounds, *args):
         warnings.warn("Optimization failed")
 
     return -optimization_result.fun
+
+
+def ift_max(network, nums, a, A, c, freqs, geocent, azim, pole, coord, keys):
+    
+    psi_num, phi_num = nums # unpack number of grid points wanted for psi and phi respectivel
+    
+    # initialize variables
+    max = 0
+    max_location = (0, 0, 0)
+    
+    # create appropriate ranges for psi and phi
+    psi_range = np.linspace(0, np.pi, psi_num)
+    phi_range = np.linspace(0, 2*np.pi, phi_num)
+    
+    psd = network.psd
+   
+    for psi in psi_range:
+        for phi in phi_range:
+            strain_signal = ft_sine_Gaussian(freqs, a, A, c, 0, phi) # t0 set to 0 here
+            modes = dict.fromkeys(keys, strain_signal)
+            strain = network.project(freqs, geocent, azim, pole, psi, coord=coord, **modes)
+            filter_t = network.ftfilter(freqs, data, strain)
+            rho_t = np.max(filter_t)
+            t0 = np.where(filter_t == np.max(filter_t))
+            
+            if rho_t > max:
+                max = rho_t
+                max_location = (psi, phi, t0)
+
+    return max_location, max
 
 
 def calculate_snr(detector_s, num, freqs, psi_true, geocent, kwargs={}):

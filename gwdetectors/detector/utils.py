@@ -284,6 +284,15 @@ coord=geographic --> interpret (azimuth, pole) as (phi, theta) in Earth-fixed co
         psd = self.psd(freqs)
         filter = inner_product(freqs, psd, data, strain/inner_product(freqs, psd, strain, strain).real**0.5)
         return (filter.real ** 2 + filter.imag ** 2) ** 0.5
+    
+    def ft_filter(self, freqs, data, strain):
+        # added, calculates filter through ift, returns filter as a function of t0
+        # maybe should be fft instead?? check this
+        psd = self.psd(freqs)
+        normalize = inner_product(freqs, psd, strain, strain).real**0.5
+        # normally multiplied by 4, but the filter integral is half the range of the ft integral
+        filter = 2 * np.fft.irfft(np.conjugate(data) * strain / psd, n=len(freqs)) / normalize
+        return filter
 
 #-------------------------------------------------
 
@@ -350,3 +359,8 @@ class Network(object):
     def modfilter(self, freqs, data, strain):
         # added, unpacks strain
         return np.sum([det.filter(freqs, d, s)**2 for det, d, s in zip(self.detectors, data, strain)])**0.5
+    
+    def ftfilter(self, freqs, data, strain):
+        # added, unpacks strain, uses ft of filter
+        # returns an array representing filter for different values of t0. dt=0 should be true for the strain. 
+        return np.sum([det.ft_filter(freqs, d, s).real**2 for det, d, s in zip(self.detectors, data, strain)], axis=0)**0.5
