@@ -48,7 +48,7 @@ def produce_freqs_signal(numpts, spread, a, A, c, dt=0, p=0):
 #-------------------------------------------------------------------------------------------------------------------------
 # optimization
 
-def filter_3(variables, a, A, c, network, freqs, geocent, data, azim, pole, coord, keys): 
+def filter_3(variables, a, A, c, network, freqs, geocent, data, coord, keys, azim, pole): 
     """
     Calculates the real component of the network filter given injected data and a projected strain. 
     Takes all 3 variables psi, t0, and phi0. 
@@ -71,7 +71,7 @@ def filter_3(variables, a, A, c, network, freqs, geocent, data, azim, pole, coor
     return fil
 
 
-def filter_2a(variables, a, A, c, network, freqs, geocent, data, azim, pole, coord, keys, t0): 
+def filter_2a(variables, a, A, c, network, freqs, geocent, data, coord, keys, t0, azim, pole): 
     """
     Function to optimize over 2 variables: psi, phi0. 
     Calculates the real component of the network filter given injected data and a projected strain. 
@@ -99,7 +99,7 @@ def filter_2a(variables, a, A, c, network, freqs, geocent, data, azim, pole, coo
     return fil
 
 
-def filter_2b(variables, a, A, c, network, freqs, geocent, data, azim, pole, coord, keys, p): 
+def filter_2b(variables, a, A, c, network, freqs, geocent, data, coord, keys, p, azim, pole): 
     """
     Function to optimize over 2 variables: psi, t0. 
     Calculates the quadrature NORM of each filter response in the network given injected data and a projected strain. Implicitly
@@ -128,7 +128,7 @@ def filter_2b(variables, a, A, c, network, freqs, geocent, data, azim, pole, coo
     return fil
 
 
-def filter_1(psi, a, A, c, network, freqs, geocent, data, azim, pole, coord, keys, p, t0): 
+def filter_1(psi, a, A, c, network, freqs, geocent, data, coord, keys, p, t0, azim, pole): 
     """
     Calculates the filter over one primary independent variable psi only. Implicitly maximizes over phi0 analytically.
     
@@ -187,9 +187,9 @@ def shgo_max(function, bounds, *args):
     return -optimization_result.fun
 
 
-def ift_max(network, nums, a, A, c, freqs, geocent, azim, pole, coord, keys):
+def ift_max(network, nums, a, A, c, freqs, geocent, coord, keys, azim, pole):
     
-    psi_num, phi_num = nums # unpack number of grid points wanted for psi and phi respectivel
+    psi_num, phi_num = nums # unpack number of grid points wanted for psi and phi respectively
     
     # initialize variables
     max = 0
@@ -243,20 +243,19 @@ def calculate_snr(detector_s, num, freqs, psi_true, geocent, kwargs={}):
 
 from functools import partial
 import concurrent.futures
+from mpi4py.futures import MPIPoolExecutor
 
 
-def one_variable_filter_mp(filter_func, ranges, npts, finish_fun, 
-                        a, A, c, network, freqs, geocent, data, coord, keys, phi, coordinates): 
+def one_variable_filter_mp(function, ranges, numpoints, finish_func, optimization_variables, coordinates): 
     """
     Essentially the same as brute_max, but with azimuth, pole as a single coordinate tuple.
     
     Parameters:
-    filter_func, ranges, npts, finish_fun --- explicit parameters for brute_max
-    *args --- parameters that go into filter_func
+    function, ranges, numpoints, finish_func --- parameters in brute
+    optimization_variables --- list: variables for the optimization function
     """
     az, po = coordinates
-    full_func = brute_max(filter_func, ranges, npts, finish_fun, a, A, c, 
-                               network, freqs, geocent, data, az, po, coord, keys, 0)[1]
+    full_func = brute_max(function, ranges, numpoints, finish_func, *optimization_variables, az, po)[1]
     
     return full_func
 
@@ -273,20 +272,44 @@ def one_variable_mp(*args):
     return one_variable
 
 
-def main(workers, num, Coords_flat, *args):
+def main_cf(workers, num, Coords_flat, *args):
     """
-    Runs one_variable_mp over Coords_flat with multiprocessing. Needs to be called in main with if __name__ ==
-    '__main__'!!
+    Runs one_variable_mp over Coords_flat with concurrent.futures. 
+    Needs to be called in main with if __name__ =='__main__'!!
     
     Parameters:
-    workers --- max number of workers, set to None for automatic 
+    workers --- max number of workers, set to None for automatic assignment
     num --- number of grid points in original azimuth, pole arrays
     Coords_flat --- list of coordinates in (azimuth, pole) format. Needs to be 1D.
-    *args --- arguments for one_variable_mp
+    *args --- *args for one_variable_mp
     """
+    
+    one_variable = one_variable_mp(*args)
 
     with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
-        results = executor.map(one_variable_mp(*args), Coords_flat)
+        results = executor.map(one_variable, Coords_flat)
+    list_results = np.array(list(results))
+    filter_grid = np.reshape(list_results, (num-1, num-1))
+    
+    return filter_grid
+
+
+def main_mpi(workers, num, Coords_flat, *args):
+    """
+    Runs one_variable_mp over Coords_flat with mpi4py. 
+    Needs to be called in main with if __name__ =='__main__'!!
+    
+    Parameters:
+    workers --- max number of workers, set to None for automatic assignment
+    num --- number of grid points in original azimuth, pole arrays
+    Coords_flat --- list of coordinates in (azimuth, pole) format. Needs to be 1D.
+    *args --- *args for one_variable_mp
+    """
+    
+    one_variable = one_variable_mp(*args)
+
+    with MPIPoolExecutor(max_workers=workers) as executor:
+        results = executor.map(one_variable, Coords_flat)
     list_results = np.array(list(results))
     filter_grid = np.reshape(list_results, (num-1, num-1))
     
