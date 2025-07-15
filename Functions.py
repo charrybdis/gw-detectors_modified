@@ -243,7 +243,6 @@ def calculate_snr(detector_s, num, freqs, psi_true, geocent, kwargs={}):
 
 from functools import partial
 import concurrent.futures
-from mpi4py.futures import MPIPoolExecutor
 
 
 def one_variable_filter_mp(function, ranges, numpoints, finish_func, optimization_variables, coordinates): 
@@ -287,28 +286,6 @@ def main_cf(workers, num, Coords_flat, *args):
     one_variable = one_variable_mp(*args)
 
     with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
-        results = executor.map(one_variable, Coords_flat)
-    list_results = np.array(list(results))
-    filter_grid = np.reshape(list_results, (num-1, num-1))
-    
-    return filter_grid
-
-
-def main_mpi(workers, num, Coords_flat, *args):
-    """
-    Runs one_variable_mp over Coords_flat with mpi4py. 
-    Needs to be called in main with if __name__ =='__main__'!!
-    
-    Parameters:
-    workers --- max number of workers, set to None for automatic assignment
-    num --- number of grid points in original azimuth, pole arrays
-    Coords_flat --- list of coordinates in (azimuth, pole) format. Needs to be 1D.
-    *args --- *args for one_variable_mp
-    """
-    
-    one_variable = one_variable_mp(*args)
-
-    with MPIPoolExecutor(max_workers=workers) as executor:
         results = executor.map(one_variable, Coords_flat)
     list_results = np.array(list(results))
     filter_grid = np.reshape(list_results, (num-1, num-1))

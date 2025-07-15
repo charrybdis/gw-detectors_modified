@@ -364,3 +364,11 @@ class Network(object):
         # added, unpacks strain, uses ft of filter
         # returns an array representing filter for different values of t0. dt=0 should be true for the strain. 
         return np.sum([det.ft_filter(freqs, d, s).real**2 for det, d, s in zip(self.detectors, data, strain)], axis=0)**0.5
+    
+    def testsnr(self, freqs, *args, **kwargs):
+        # added, returns filter values as a list
+        return np.array([det.snr(freqs, det.project(freqs, *args, **kwargs)) for det in self.detectors])
+    
+    def testfilter(self, freqs, data, strain):
+        # added, unpacks strain, returns filter values as a list
+        return np.array([det.filter(freqs, d, s) for det, d, s in zip(self.detectors, data, strain)])
