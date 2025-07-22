@@ -357,8 +357,8 @@ class Network(object):
         return np.sum([det.filter_phi(freqs, d, s)**2 for det, d, s in zip(self.detectors, data, strain)])**0.5
     
     def modfilter(self, freqs, data, strain):
-        # added, unpacks strain
-        return np.sum([det.filter(freqs, d, s)**2 for det, d, s in zip(self.detectors, data, strain)])**0.5
+        # added, unpacks strain, uses real component of each filter response
+        return np.sum([det.filter(freqs, d, s).real**2 for det, d, s in zip(self.detectors, data, strain)])**0.5
     
     def ftfilter(self, freqs, data, strain):
         # added, unpacks strain, uses ft of filter

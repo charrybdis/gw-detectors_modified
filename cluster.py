@@ -5,51 +5,7 @@ import numpy as np
 from mpi4py import MPI # this needs to be imported only where torque is installed or it gives annoying warnings 
 from mpi4py.futures import MPIPoolExecutor
 
-def produce_optimization_params(network, produce_freqs_signal_params, true_params, strain_keys, num): 
-    """
-    Creates all the information needed to optimize the filter response over psi, t0, phi and calculate it over a grid.
-    
-    Parameters: 
-    network --- instance of Network containing Detectors
-    produce_freqs_signal_params --- parameters for produce_freqs_signal function in Functions
-    true_params --- parameters for "true" data; azimuth, pole, psi, geocent_time, {hp:signal, hx:signal,....} 
-    brute_params --- parameters for scipy brute function
-    strain_keys --- ['hp', 'hx',...]
-    num --- number of grid points for sky 
-    """
-    
-    # signal information
-    numpts, spread, a, A, c, dt, p = produce_freqs_signal_params
-    freqs, ast_signal = produce_freqs_signal(numpts, spread, a, A, c, dt, p)
-    
-    # true data information
-    az_true, po_true, psi_true, geocent, coord, true_keys = true_params
-    true_modes = dict.fromkeys(true_keys, ast_signal)
-    data = network.project(freqs, geocent, az_true, po_true, psi_true, coord=coord, **true_modes)
-    true_snr = network.snr(freqs, geocent, az_true, po_true, psi_true, coord=coord, **true_modes)
-    
-    # pack optimization variables
-    optimization_variables = [a, A, c, network, freqs, geocent, data, coord, strain_keys]
-    
-    # generate sky coordinate pairs
-    azimuths = np.linspace(-np.pi, np.pi, num)
-    poles = np.flip(np.linspace(0, np.pi, num))
-
-    Azimuths, Poles = np.meshgrid(azimuths[1:], poles[1:], indexing='ij')
-    Azimuths_flat = Azimuths.flatten()
-    Poles_flat = Poles.flatten()
-    Coords_flat = list(zip(Azimuths_flat, Poles_flat))
-
-    # Create dictionary with true parameters to store results
-    info = {'a': a, 'A': A, 'c': c, 'dt':dt, 'network':network}
-    true_params = {'pole': po_true, 'azim':az_true,
-                   'psi': psi_true, 't0':dt,
-                   'geocent':geocent, 'modes':true_keys
-                  }
-    current_dict = {}
-    
-    return info, true_params, current_dict, true_snr, optimization_variables, Coords_flat
-
+#--------------------------------------------------------------------------------------------------------------
 
 def main_mpi(workers, num, Coords_flat, *args):
     """
@@ -63,12 +19,142 @@ def main_mpi(workers, num, Coords_flat, *args):
     Coords_flat --- list of coordinates in (azimuth, pole) format. Needs to be 1D.
     *args --- *args for one_variable_mp
     """
-    
+
     one_variable = one_variable_mp(*args)
 
     with MPIPoolExecutor(max_workers=workers) as executor:
         results = executor.map(one_variable, Coords_flat)
     list_results = np.array(list(results))
-    
+
     return list_results
 
+#--------------------------------------------------------------------------------------------------------------
+
+def detector_iterate(new_detectors, network_initial,
+                     produce_freqs_signal_params, true_params, strain_keys, num, brute_params,
+                     full_output=False):
+    """
+    Iterates over a set of new detectors to find the network which provides the smallest match. Uses mpi4py.futures.
+    
+    Parameters:
+    new_detectors --- (List) 
+    network_initial --- (Network) base network
+    
+    Returns: 
+    match --- (Number) match value
+    best_detector --- (Detector) best detector to append to network_initial in order to minimize the match
+    """
+    
+    match = 1
+    best_detector = new_detectors[0]
+
+    for new_detector in new_detectors: 
+        network = Network(*network_initial.detectors, new_detector)
+
+        true_snr, optimization_variables, Coords_flat=produce_optimization_params(network, produce_freqs_signal_params,
+                                                                                  true_params, strain_keys, num)
+        list_results = main_mpi(None, num, Coords_flat, *brute_params, optimization_variables)
+
+        filter_grid = np.reshape(list_results, (num-1, num-1))
+        
+        max_filter = np.max(filter_grid)
+        rho_match = max_filter / true_snr
+        
+        if rho_match < match: 
+            match = rho_match
+            best_detector = new_detector
+            
+    if full_output == True: 
+        pass
+            
+    return match, best_detector
+
+
+def true_coords_iterate(true_coords, true_psi, geocent, coord, true_keys, 
+                        network, produce_freqs_signal_params, strain_keys, num, 
+                        brute_params,
+                        full_output=False):
+    """
+    Iterates optimization over a set of true coordinates for the data. Uses mpi4py.futures.
+    
+    Parameters:
+    true_coords --- (List) list of (azimuth, pole) coordinates
+    
+    Returns: 
+    current_dict --- (Dict) Match results and parameters for all coordinates in true_coords
+    """
+
+    current_dict={}
+
+    for i, signal_coord in enumerate(true_coords):
+        true_az, true_po, true_psi = signal_coord
+        true_params = [true_az, true_po, true_psi, geocent, coord, true_keys]
+
+        true_snr, optimization_variables, Coords_flat=produce_optimization_params(network, produce_freqs_signal_params,
+                                                                                  true_params, strain_keys, num)
+        list_results = main_mpi(None, num, Coords_flat, *brute_params, optimization_variables)
+        filter_grid = np.reshape(list_results, (num-1, num-1))
+
+        # get parameters, save results to dictionary
+        max_filter = np.max(filter_grid)
+        rho_match = max_filter / true_snr
+
+        max_skyindex = np.where(list_results == np.max(list_results))
+        max_sky_coords = [Coords_flat[i] for i in max_skyindex[0]] # need the [0] bc np.where automatically returns (array,)
+        max_az, max_po = max_sky_coords[0]
+
+        if len(max_sky_coords) == 1:
+            max_vars = Functions.brute_max(*brute_params, *optimization_variables,
+                                           max_az, max_po)[0]
+        else:
+            max_vars = [Functions.brute_max(*brute_params, *optimization_variables,
+                                            max_az, max_po) for max_az, max_po in max_sky_coords]
+
+        run_results = {'pole': true_po, 'azim':true_az, 'psi': true_psi,
+                       'filter':max_filter, 'match':rho_match, 'max_sky_coords':max_sky_coords, 'max_vars':max_vars}
+        current_dict["_".join(strain_keys) + "-" + f"{i}"] = run_results
+    return current_dict
+
+#----------------------------------------------------------------------------------------------------------------
+
+def true_coords_(signal_coord, true_psi, geocent, coord, true_keys,
+                 network, produce_freqs_signal_params, strain_keys, num, 
+                 brute_params, full_output=False):
+    """
+    Calculates optimization over true coordinates for the data. Uses mpi4py.futures.
+    Allows for moving the iteration loop outside the function so the results of each iteration can be saved separately.
+    
+    Parameters:
+    signal_coord --- (Tuple) (azimuth, pole) coordinates
+    
+    Returns: 
+    run_results --- (Dict) Match results and parameters for signal_coord
+    """
+
+    true_az, true_po, true_psi = signal_coord
+    true_params = [true_az, true_po, true_psi, geocent, coord, true_keys]
+
+    true_snr, optimization_variables, Coords_flat=produce_optimization_params(network, produce_freqs_signal_params,
+                                                                              true_params, strain_keys, num)
+    list_results = main_mpi(None, num, Coords_flat, *brute_params, optimization_variables)
+    filter_grid = np.reshape(list_results, (num-1, num-1))
+
+    # get parameters, save results to dictionary
+    max_filter = np.max(filter_grid)
+    rho_match = max_filter / true_snr
+
+    max_skyindex = np.where(list_results == np.max(list_results))
+    max_sky_coords = [Coords_flat[i] for i in max_skyindex[0]] # need the [0] bc np.where automatically returns (array,)
+    max_az, max_po = max_sky_coords[0]
+
+    if len(max_sky_coords) == 1:
+        max_vars = Functions.brute_max(*brute_params, *optimization_variables,
+                                       max_az, max_po)[0]
+    else:
+        max_vars = [Functions.brute_max(*brute_params, *optimization_variables,
+                                        max_az, max_po) for max_az, max_po in max_sky_coords]
+
+    run_results = {'pole': true_po, 'azim':true_az, 'psi': true_psi,
+                   'filter':max_filter, 'match':rho_match, 'max_sky_coords':max_sky_coords, 'max_vars':max_vars}
+    return run_results
+   

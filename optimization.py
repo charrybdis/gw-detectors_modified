@@ -1,6 +1,6 @@
 from gwdetectors import *
 import Functions
-from cluster import produce_optimization_params
+from cluster import *
 import numpy as np
 import pandas as pd
 
@@ -34,11 +34,21 @@ npts = 20
 finish_func = None
 
 # strain modes
-strain_keys = ['hx']
+strain_keys = ['hvx']
 
 # azimuth, pole resolution
 num = 45
 
+#---------------------------------------------------------------------------------------------------
+
+## dictionaries to store result info
+
+info = {'a': a, 'A': A, 'c': c, 'dt':dt, 'network':network}
+true_params = {'pole': po_true, 'azim':az_true,
+               'psi': psi_true, 't0':dt, 'phi'=p,
+               'geocent':geocent, 'modes':true_keys
+              }
+current_dict={}
 #---------------------------------------------------------------------------------------------------
 
 ## collect variables
@@ -48,8 +58,8 @@ brute_params = [opt_func, ranges, npts, finish_func]
 
 ## run optimization
 if __name__ == '__main__':
-    info, true_params, current_dict, true_snr, optimization_variables, Coords_flat=produce_optimization_params(network, produce_freqs_signal_params, true_params, strain_keys, num)
-    list_results = Functions.main_mpi(None, num, Coords_flat, *brute_params, optimization_variables)
+    true_snr, optimization_variables, Coords_flat=produce_optimization_params(network, produce_freqs_signal_params, true_params, strain_keys, num)
+    list_results = main_mpi(None, num, Coords_flat, *brute_params, optimization_variables)
 
 filter_grid = np.reshape(list_results, (num-1, num-1))
 
