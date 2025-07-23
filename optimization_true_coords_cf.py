@@ -1,8 +1,9 @@
 from gwdetectors import *
 from Functions import *
-from cluster import *
 import numpy as np
 import pandas as pd
+import pickle
+from time import perf_counter
 
 """
 loops over values of "true" sky coordinates for the injected data. 
@@ -18,14 +19,14 @@ K_instantiator, K_loc, K_arms = DETECTOR_ORIENTATIONS['K']
 Kagra = K_instantiator('Kagra', PSDS[KNOWN_PSDS[0]], K_loc, K_arms, long_wavelength_approximation=False)
 network = Network(DETECTORS['H_aligo-design'], DETECTORS['L_aligo-design'], 
                   DETECTORS['V_advirgo-design'], DETECTORS['CE@L_ce-design'], Kagra)
-fsr = 1 / (2 * np.sum(DETECTORS['H_aligo-design'].arms[0]**2)**0.5)
+fsr = 1 / (2 * np.sum(DETECTORS['CE@L_ce-design'].arms[0]**2)**0.5)
 
 # signal variables
 numpts = 120
 spread = 4
 a = fsr 
 A = 1e-23
-c = 1e-3
+c = 1e-4
 dt = 0
 p = 0
 
@@ -33,12 +34,12 @@ p = 0
 geocent = 0
 coord = 'geographic'
 true_keys = ['hp']
-true_res = 4
+true_res = 8 # resolution of true coordinate grid!!
 true_psi = 0
 
 # scipy brute variables
 opt_func = filter_2a # remember if you change this you need to go change optimization_variables
-ranges = ((0, np.pi, np.pi/45), (0, 2*np.pi, 2*np.pi/90)) #(dt-0.01, dt+0.01, 0.01) if including time
+ranges = ((0, np.pi, np.pi/90), (0, 2*np.pi, 2*np.pi/180)) #(dt-0.01, dt+0.01, 0.01) if including time
 npts = 20
 finish_func = None
 
@@ -46,7 +47,8 @@ finish_func = None
 strain_keys = ['hb']
 
 # azimuth, pole resolution
-num = 32
+num = 64
+workers = num # max number of worker processes
 
 #---------------------------------------------------------------------------------------------------
 ## collecting variables, creating true sky positions
@@ -73,10 +75,21 @@ df_info.to_csv(f'/fs/lustre/cita/jewelcao/gw-detectors/results/current_run/info.
 ## run optimization
 
 if __name__ == '__main__':
+    iteration_start = time.time()
     for i, signal_coord in enumerate(true_coords): 
-        run_results = true_coords_(signal_coord, true_psi, geocent, coord, true_keys,
-                                   network, produce_freqs_signal_params, strain_keys, num,
-                                   brute_params, full_output=False)
-        df_results = pd.DataFrame.from_dict(run_results)
-        df_results.to_csv(f'/fs/lustre/cita/jewelcao/gw-detectors/results/current_run/{"_".join(true_keys) + "-" + "_".join(strain_keys)}_{i}.csv')
-        print(f'Finished iteration {i}')
+        i_start = perf_counter()
+        
+        run_results = true_coords_cf(signal_coord, true_psi, geocent, coord, true_keys,
+                                     network, produce_freqs_signal_params, strain_keys, 
+                                     workers, num, brute_params, 
+                                     full_output=True)
+        
+        with open(f"/fs/lustre/cita/jewelcao/gw-detectors/results/current_run/results_{i}.pickle", "wb") as f:
+            pickle.dump(run_results, f)
+        
+        i_end = perf_counter()
+        elapsed_time = i_end - i_start
+        print(f'Finished iteration {i} in {elapsed_time} seconds')
+    
+    iteration_end = time.time()
+    print(f'Total time taken: {iteration_end - iteration_start} seconds')
