@@ -287,11 +287,11 @@ coord=geographic --> interpret (azimuth, pole) as (phi, theta) in Earth-fixed co
     
     def ft_filter(self, freqs, data, strain):
         # added, calculates filter through ift, returns filter as a function of t0
-        # maybe should be fft instead?? check this
+        # maybe should be irfft instead?? check this
         psd = self.psd(freqs)
-        normalize = inner_product(freqs, psd, strain, strain).real**0.5
+        normalize = inner_product(freqs, psd, strain, strain)**0.5
         # normally multiplied by 4, but the filter integral is half the range of the ft integral
-        filter = 2 * np.fft.irfft(np.conjugate(data) * strain / psd, n=len(freqs)) / normalize
+        filter = 2 * np.fft.fft(np.conjugate(data) * strain / psd, n=len(freqs)) / normalize
         return filter
 
 #-------------------------------------------------
