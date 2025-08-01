@@ -92,7 +92,13 @@ def produce_optimization_params(network, produce_freqs_signal_params, true_param
     az_true, po_true, psi_true, geocent, coord, true_keys = true_params
     true_modes = dict.fromkeys(true_keys, ast_signal)
     data = network.project(freqs, geocent, az_true, po_true, psi_true, coord=coord, **true_modes)
-    true_snr = network.snr(freqs, geocent, az_true, po_true, psi_true, coord=coord, **true_modes)
+    
+    if isinstance(network, Network):
+        true_snr = network.snr(freqs, geocent, az_true, po_true, psi_true, coord=coord, **true_modes)
+    elif isinstance(network, Detector):
+        true_snr = network.snr(freqs, data)
+    else:
+        raise Exception('network needs to be either a Detector or Network instance')
 
     # pack optimization variables
     if variables == None:
@@ -108,32 +114,22 @@ def produce_optimization_params(network, produce_freqs_signal_params, true_param
     return true_snr, optimization_variables, Coords_flat
 
 
-def true_coords_cf_grid(signal_coord, true_psi, geocent, coord, true_keys,
-                        network, produce_freqs_signal_params, strain_keys, 
-                        num, brute_params, 
-                        variables=None, 
-                        workers=None, 
-                        finish=False):
+def find_max_params(max_filter, list_results, Coords_flat, brute_params, optimization_variables):
     """
-    Calculates optimization for a set of true coordinates for the data over a grid of strain sky coordinates. 
-    Uses concurrent.futures. Returns the filter response as a grid. 
-    
-    Returns: 
-    true_snr, filter_grid --- (Float, Array) 
-    true_snr, optimization_variables, Coords_flat, list_results --- (Float, List, List, List)
+    Helper for true_coords_cf. 
+    Calculates parameters corresponding to the maximum match found through optimization.
     """
-    
-    true_az, true_po, true_psi = signal_coord # unpack coordinates
-    true_params = [true_az, true_po, true_psi, geocent, coord, true_keys]
-    true_snr, optimization_variables, Coords_flat=produce_optimization_params(network, produce_freqs_signal_params,
-                                                                              true_params, strain_keys, num, 
-                                                                              variables=variables)
-    # optimization
-    list_results = main_cf(Coords_flat, *brute_params, optimization_variables, 
-                           workers=workers, finish=finish)
-    
-    filter_grid = np.reshape(list_results, (num, num))
-    return true_snr, filter_grid
+    max_skyindex = np.where(list_results == max_filter)
+    max_sky_coords = [Coords_flat[i] for i in max_skyindex[0]] # need [0] bc np.where returns (array,)
+    max_az, max_po = max_sky_coords[0] # need this in case len(max_sky_coords) == 1
+
+    if len(max_sky_coords) == 1:
+        max_vars = brute_max(*brute_params, *optimization_variables, max_az, max_po)[0]
+    else:
+        max_vars = [brute_max(*brute_params, *optimization_variables, max_az, max_po)[0] 
+                    for max_az, max_po in max_sky_coords]
+
+    return max_sky_coords, max_vars
 
 
 def true_coords_cf(signal_coord, true_psi, geocent, coord, true_keys,
@@ -171,16 +167,7 @@ def true_coords_cf(signal_coord, true_psi, geocent, coord, true_keys,
     
     # find parameters
     if full_output == True:
-        max_skyindex = np.where(list_results == np.max(list_results))
-        max_sky_coords = [Coords_flat[i] for i in max_skyindex[0]] # need [0] bc np.where returns (array,)
-        max_az, max_po = max_sky_coords[0] # need this in case len(max_sky_coords) == 1
-
-        if len(max_sky_coords) == 1:
-            max_vars = brute_max(*brute_params, *optimization_variables,
-                                 max_az, max_po)[0]
-        else:
-            max_vars = [brute_max(*brute_params, *optimization_variables,
-                                  max_az, max_po)[0] for max_az, max_po in max_sky_coords]
+        max_sky_coords, max_vars = find_max_params(max_filter, list_results, Coords_flat, brute_params, optimization_variables)
 
         run_results = {'true pole': true_po, 'true azim':true_az, 'true psi': true_psi,
                        'filter':max_filter, 'match':rho_match, 'max_sky_coords':max_sky_coords, 'max_vars':max_vars}
@@ -189,6 +176,82 @@ def true_coords_cf(signal_coord, true_psi, geocent, coord, true_keys,
                        'filter':max_filter, 'match':rho_match}
 
     return run_results
+
+
+def true_coords_cf_grid(signal_coord, true_psi, geocent, coord, true_keys,
+                        network, produce_freqs_signal_params, strain_keys, 
+                        num, brute_params, 
+                        variables=None, 
+                        workers=None, 
+                        finish=False):
+    """
+    Calculates optimization for a set of true coordinates for the data over a grid of strain sky coordinates. 
+    Uses concurrent.futures. Returns the filter response as a grid. 
+    
+    Returns: 
+    true_snr, filter_grid --- (Float, Array) 
+    true_snr, optimization_variables, Coords_flat, list_results --- (Float, List, List, List)
+    """
+    
+    true_az, true_po, true_psi = signal_coord # unpack coordinates
+    true_params = [true_az, true_po, true_psi, geocent, coord, true_keys]
+    true_snr, optimization_variables, Coords_flat=produce_optimization_params(network, produce_freqs_signal_params,
+                                                                              true_params, strain_keys, num, 
+                                                                              variables=variables)
+    # optimization
+    list_results = main_cf(Coords_flat, *brute_params, optimization_variables, 
+                           workers=workers, finish=finish)
+    
+    filter_grid = np.reshape(list_results, (num, num))
+    return true_snr, filter_grid
+
+
+
+def true_coords_cf_detectors(signal_coord, true_psi, geocent, coord, true_keys,
+                             network, produce_freqs_signal_params, strain_keys, 
+                             num, brute_params, 
+                             variables=None, 
+                             workers=None, 
+                             finish=False,
+                             full_output=True):
+    """
+    Returns optimization result for a set of true coordinates for the data over a grid of strain sky coordinates
+    for each detector in network separately. 
+    Uses concurrent.futures.
+
+    Returns:
+    detector_results --- (Dict) Maximum match and filter and parameters for true signal for each detector.
+        If full_output is true, also contains variables that give maximum match.
+    """
+    true_az, true_po, true_psi = signal_coord # unpack coordinates
+    true_params = [true_az, true_po, true_psi, geocent, coord, true_keys]
+    
+    detectors_results = {}
+    
+    for i, detector in enumerate(network.detectors):
+        true_snr, optimization_variables, Coords_flat=produce_optimization_params(network, produce_freqs_signal_params,
+                                                                                  true_params, strain_keys, num, 
+                                                                                  variables=variables)
+        list_results = main_cf(Coords_flat, *brute_params, optimization_variables, 
+                               workers=workers, 
+                               finish=finish)
+        
+        max_filter = np.max(list_results)
+        rho_match = max_filter / true_snr
+
+        if full_output == True:
+            max_sky_coords, max_vars = find_max_params(max_filter, list_results, Coords_flat, brute_params, 
+                                                       optimization_variables)
+
+            run_results = {'true pole': true_po, 'true azim':true_az, 'true psi': true_psi,
+                           'filter':max_filter, 'match':rho_match, 'max_sky_coords':max_sky_coords, 'max_vars':max_vars}
+        else:
+            run_results = {'true pole': true_po, 'true azim':true_az, 'true psi': true_psi, 
+                           'filter':max_filter, 'match':rho_match}
+         
+        detectors[detector.name] = run_results
+    return detectors_results
+
 
 #----------------------------------------------------------------------------------------------
 ### multiprocessing over true sky coordinates azimuth, pole, and detector locations

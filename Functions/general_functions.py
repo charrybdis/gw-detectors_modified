@@ -12,6 +12,22 @@ def c():
     return 299792458
 
 
+def sine_Gaussian(t, a, A, c, dt=0, p=0):
+    """
+    Sinusoidal Gaussian pulse.
+    
+    Parameters: 
+    w --- (Number or 1D array) independent variable frequency (Hz) 
+    a --- (Number) frequency of sinuisoidal component
+    A --- (Number) amplitude of Gaussian envelope 
+    c --- (Number) standard deviation of Gaussian envelope
+    
+    dt --- (Number) time shift, default 0 
+    p --- (Number) phase shift, default 0
+    """
+    return A * np.cos((2 * np.pi * a * (t - dt)) + p) * np.exp(-(t - dt)**2 / (2 * c**2))
+
+
 def ft_sine_Gaussian(w, a, A, c, dt=0, p=0): 
     """
     Fourier Transform of sinusoidal Gaussian pulse
@@ -53,7 +69,7 @@ def produce_freqs_signal(numpts, spread, a, A, c, dt=0, p=0):
     return freqs, ast_signal
 
 
-def az_po_meshgrid(res, coord):
+def az_po_meshgrid(res, coord, endpoint=True):
     """
     Returns appropriate arrays of sky coordinate based on the coordinate system for use in meshgrid. 
     
@@ -66,7 +82,8 @@ def az_po_meshgrid(res, coord):
     """
     
     if coord =='geographic':
-        azimuths = np.linspace(-np.pi, np.pi, res, endpoint=False) # excludes pi, since it's the same as -pi
+        azimuths = np.linspace(-np.pi, np.pi, res, endpoint=endpoint) # optionally excludes pi, since it's the same as -pi
+        # but note that it will change the grid spacing which could be undesirable
         poles = np.flip(np.linspace(0, np.pi, res))
     if coord =='celestial':
         pass

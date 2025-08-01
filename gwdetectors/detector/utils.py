@@ -291,7 +291,7 @@ coord=geographic --> interpret (azimuth, pole) as (phi, theta) in Earth-fixed co
         psd = self.psd(freqs)
         normalize = inner_product(freqs, psd, strain, strain)**0.5
         # normally multiplied by 4, but the filter integral is half the range of the ft integral
-        filter = 2 * np.fft.fft(np.conjugate(data) * strain / psd, n=len(freqs)) / normalize
+        filter = 2 * np.fft.fftshift(np.fft.fft(np.conjugate(data) * strain / psd)) / normalize
         return filter
 
 #-------------------------------------------------
@@ -352,7 +352,7 @@ class Network(object):
     def filter(self, freqs, data, strain):
         return np.sum([det.filter(freqs, d, strain)**2 for det, d in zip(self.detectors, data)])**0.5
     
-    def mfilter(self, freqs, data, strain):
+    def normfilter(self, freqs, data, strain):
         # added, unpacks strain, uses norm of filter
         return np.sum([det.filter_phi(freqs, d, s)**2 for det, d, s in zip(self.detectors, data, strain)])**0.5
     

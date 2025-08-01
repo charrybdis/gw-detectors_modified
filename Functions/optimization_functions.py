@@ -62,6 +62,22 @@ def filter_3(variables, a, A, c, detector_s, freqs, geocent, data, coord, keys, 
     return fil
 
 
+def filter_3_det(variables, a, A, c, detector, freqs, geocent, data, coord, keys, azim, pole): 
+    """
+    filter_3, but for a single detector. 
+    """
+    psi, t0, phi0 = variables # unpack variables
+
+    strain_signal = ft_sine_Gaussian(freqs, a, A, c, t0, phi0) # create template strain
+    
+    modes = dict.fromkeys(keys, strain_signal) 
+    proj_strain = detector.project(freqs, geocent, azim, pole, psi, coord=coord, **modes)
+
+    fil = detector.filter(freqs, data, proj_strain).real 
+    
+    return fil
+
+
 def filter_2a(variables, a, A, c, detector_s, freqs, geocent, data, coord, keys, t0, azim, pole): 
     """
     Function to optimize over 2 variables: psi, phi0. 
@@ -114,7 +130,7 @@ def filter_2b(variables, a, A, c, network, freqs, geocent, data, coord, keys, p,
     modes = dict.fromkeys(keys, strain_signal) 
     proj_strain = network.project(freqs, geocent, azim, pole, psi, coord=coord, **modes)
     
-    fil = network.mfilter(freqs, data, proj_strain)
+    fil = network.normfilter(freqs, data, proj_strain)
     
     return fil
 
@@ -130,7 +146,7 @@ def filter_1(psi, a, A, c, network, freqs, geocent, data, coord, keys, p, t0, az
     modes = dict.fromkeys(keys, strain_signal) 
     proj_strain = network.project(freqs, geocent, azim, pole, psi, coord=coord, **modes)
     
-    fil = network.mfilter(freqs, data, proj_strain)
+    fil = network.normfilter(freqs, data, proj_strain)
     
     return fil
 
@@ -178,8 +194,8 @@ def ift_max(network, num, a, A, c, freqs, geocent, data, coord, strain_keys, str
     max_filter = 0
     
     # create appropriate ranges for psi and phi
-    psi_range = np.linspace(0, np.pi, num)
-    phi_range = np.linspace(0, 2*np.pi, 2*num, endpoint=False)
+    psi_range = np.linspace(0, 2*np.pi, num, endpoint=False)
+    phi_range = np.linspace(0, 2*np.pi, num, endpoint=False)
     
     for psi in psi_range:
         for phi in phi_range:
