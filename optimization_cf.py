@@ -19,10 +19,14 @@ returns best match, parameters of best match
 filepath = sys.argv[1]
 
 # define network
+K_instantiator, K_loc, K_arms = DETECTOR_ORIENTATIONS['K']
+Kagra = K_instantiator('Kagra', PSDS[KNOWN_PSDS[0]], K_loc, K_arms, long_wavelength_approximation=False)
 CE_loc = np.array([-1000, 4000, 4000]) * 1000 / 299792458
-CE_arms = DETECTORS['CE@H_ce-design'].arms
-CE_psd = DETECTORS['CE@H_ce-design'].psd
+CE_arms = DETECTORS['CE@L_ce-design'].arms
+CE_psd = DETECTORS['CE@L_ce-design'].psd
 CE = TwoArmDetector('CE', CE_psd, CE_loc, CE_arms, long_wavelength_approximation=False)
+network = Network(DETECTORS['H_aligo-design'], DETECTORS['L_aligo-design'], 
+                  DETECTORS['V_advirgo-design'], CE, Kagra)
 fsr = 1 / (2 * np.sum(DETECTORS['CE@L_ce-design'].arms[0]**2)**0.5)
 
 # signal variables
@@ -42,7 +46,7 @@ true_psi = 0
 true_res = int(sys.argv[5])
 
 # scipy brute variables
-opt_func = filter_3_det # remember if you change this you need to change variables and ranges
+opt_func = filter_3 # remember if you change this you need to change variables and ranges
 range_res = int(sys.argv[6])
 ranges = ((0, 2*np.pi, 2*np.pi/range_res), (dt-0.04, dt+0.04, 0.08/8), (0, 2*np.pi, 2*np.pi/range_res))
 npts = 20
@@ -51,7 +55,7 @@ variables = None
 # azimuth, pole resolution
 num = int(sys.argv[7])
 workers = int(sys.argv[8]) # max number of worker processes
-                
+
 # strain modes
 strain_keys = sys.argv[9:]
 
@@ -77,7 +81,7 @@ else:
 
 info = {'true_mode':true_keys, 'strain_mode':strain_keys,
         'a': a, 'A': A, 'c': c, 'dt':dt, 'phi':p, 
-        'geocent':geocent, 'coord':coord, 'detector':CE, 
+        'geocent':geocent, 'coord':coord, 'network':network, 
         'freq_res':freq_res, 'true_res':true_res, 'psi/phi_res':range_res, 'strain_res':num}
 
 with open(f"{filepath}/info.pickle","wb") as f:
@@ -92,7 +96,7 @@ if __name__ == '__main__':
         i_start = perf_counter()
         
         run_results = true_coords_cf(signal_coord, true_psi, geocent, coord, true_keys,
-                                     CE, produce_freqs_signal_params, strain_keys, 
+                                     network, produce_freqs_signal_params, strain_keys, 
                                      num, brute_params, 
                                      variables=variables, 
                                      workers=workers, 

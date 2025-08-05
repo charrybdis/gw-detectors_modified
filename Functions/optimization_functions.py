@@ -78,6 +78,22 @@ def filter_3_det(variables, a, A, c, detector, freqs, geocent, data, coord, keys
     return fil
 
 
+def filter_3_detectors(variables, a, A, c, detector_s, freqs, geocent, data, coord, keys, azim, pole): 
+    """
+    fils --- (List) Real component of the filter response in each detector.
+    """
+    psi, t0, phi0 = variables
+
+    strain_signal = ft_sine_Gaussian(freqs, a, A, c, t0, phi0)
+    
+    modes = dict.fromkeys(keys, strain_signal) 
+    proj_strain = detector_s.project(freqs, geocent, azim, pole, psi, coord=coord, **modes)
+    
+    fils = detector_s.testfilter(freqs, data, proj_strain).real
+    
+    return fils
+
+
 def filter_2a(variables, a, A, c, detector_s, freqs, geocent, data, coord, keys, t0, azim, pole): 
     """
     Function to optimize over 2 variables: psi, phi0. 

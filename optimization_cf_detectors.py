@@ -10,7 +10,7 @@ import os
 """
 loops over values of "true" sky coordinates for the injected data. 
 optimizes over sky coordinates, polarization angle, psi, t0, and phi of comparison strain data,
-returns best match, parameters of best match
+returns overall best match, and corresponding max filter separately for each detector.
 """
 
 #-------------------------------------------------------------------------------------------------
@@ -21,16 +21,20 @@ filepath = sys.argv[1]
 # define network
 K_instantiator, K_loc, K_arms = DETECTOR_ORIENTATIONS['K']
 Kagra = K_instantiator('Kagra', PSDS[KNOWN_PSDS[0]], K_loc, K_arms, long_wavelength_approximation=False)
+CE_loc = np.array([-1000, 4000, 4000]) * 1000 / 299792458
+CE_arms = DETECTORS['CE@L_ce-design'].arms
+CE_psd = DETECTORS['CE@L_ce-design'].psd
+CE = TwoArmDetector('CE', CE_psd, CE_loc, CE_arms, long_wavelength_approximation=False)
 network = Network(DETECTORS['H_aligo-design'], DETECTORS['L_aligo-design'], 
-                  DETECTORS['V_advirgo-design'], DETECTORS['CE@L_ce-design'], Kagra)
+                  DETECTORS['V_advirgo-design'], Kagra, CE)
 fsr = 1 / (2 * np.sum(DETECTORS['CE@L_ce-design'].arms[0]**2)**0.5)
 
 # signal variables
 freq_res = int(sys.argv[2])
 spread = 4
-a = fsr 
+a = fsr / float(sys.argv[3])
 A = 1e-23
-c = 1e-4
+c = float(sys.argv[4])
 dt = 0
 p = 0
 
@@ -39,21 +43,21 @@ geocent = 0
 coord = 'geographic'
 true_keys = ['hp']
 true_psi = 0
-true_res = int(sys.argv[3])
+true_res = int(sys.argv[5])
 
 # scipy brute variables
 opt_func = filter_3 # remember if you change this you need to change variables and ranges
-range_res = int(sys.argv[4])
-ranges = ((0, 2*np.pi, 2*np.pi/range_res), (0, 2*np.pi, 2*np.pi/range_res), (dt-0.04, dt+0.04, 0.08/10))
+range_res = int(sys.argv[6])
+ranges = ((0, 2*np.pi, 2*np.pi/range_res), (dt-0.04, dt+0.04, 0.08/8), (0, 2*np.pi, 2*np.pi/range_res))
 npts = 20
 variables = None
 
-# strain modes
-strain_keys = sys.argv[7:]
-
 # azimuth, pole resolution
-num = int(sys.argv[5])
-workers = int(sys.argv[6]) # max number of worker processes
+num = int(sys.argv[7])
+workers = int(sys.argv[8]) # max number of worker processes
+
+# strain modes
+strain_keys = sys.argv[9:]
 
 #---------------------------------------------------------------------------------------------------
 ## collecting variables, creating true sky positions
@@ -91,13 +95,12 @@ if __name__ == '__main__':
     for i, signal_coord in enumerate(true_coords): 
         i_start = perf_counter()
         
-        run_results = true_coords_cf(signal_coord, true_psi, geocent, coord, true_keys,
-                                     network, produce_freqs_signal_params, strain_keys, 
-                                     num, brute_params, 
-                                     variables=variables, 
-                                     workers=workers, 
-                                     finish=True, 
-                                     full_output=True)
+        run_results = true_coords_cf_detectors(signal_coord, true_psi, geocent, coord, true_keys,
+                                               network, produce_freqs_signal_params, strain_keys, 
+                                               num, brute_params, 
+                                               variables=variables, 
+                                               workers=workers, 
+                                               finish=True)
         
         with open(f"{filepath}/results_{i}.pickle", "wb") as f:
             pickle.dump(run_results, f)

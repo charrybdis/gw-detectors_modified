@@ -63,8 +63,11 @@ def produce_freqs_signal(numpts, spread, a, A, c, dt=0, p=0):
     ft_std = 1/(2 * np.pi * c) # New standard deviation of Gaussian peak in frequency domain 
     width = spread*ft_std # Width of frequency peak
     
-    freqs= np.linspace(a-width, a+width, numpts)
-    ast_signal = ft_sine_Gaussian(freqs, a, A, c, dt, p)
+    if a-width < 0: 
+        freqs = np.linspace(0, a+width, numpts)
+    else:
+        freqs= np.linspace(a-width, a+width, numpts)
+        ast_signal = ft_sine_Gaussian(freqs, a, A, c, dt, p)
     
     return freqs, ast_signal
 
