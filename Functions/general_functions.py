@@ -3,7 +3,7 @@ from gwdetectors.detector import *
 import warnings
 
 #------------------------------------------------------------------------------------------------
-# general functions (not optimization)
+# general functions
 
 def c():
     """
@@ -72,7 +72,7 @@ def produce_freqs_signal(numpts, spread, a, A, c, dt=0, p=0):
     return freqs, ast_signal
 
 
-def az_po_meshgrid(res, coord, endpoint=True):
+def az_po_meshgrid(res, coord, truncate=False):
     """
     Returns appropriate arrays of sky coordinate based on the coordinate system for use in meshgrid. 
     
@@ -83,15 +83,51 @@ def az_po_meshgrid(res, coord, endpoint=True):
     Returns: 
     azimuths, poles --- (Tuple of 1D arrays of length true_res) arrays of azimuth, pole coordinates
     """
-    
     if coord =='geographic':
-        azimuths = np.linspace(-np.pi, np.pi, res, endpoint=endpoint) # optionally excludes pi, since it's the same as -pi
-        # but note that it will change the grid spacing which could be undesirable
-        poles = np.flip(np.linspace(0, np.pi, res))
+        if truncate == True:
+            azimuths = np.linspace(-np.pi, np.pi, res)[1:] # since -pi and pi are the same
+            poles = np.flip(np.linspace(0, np.pi, res))[1:-1] # since 0 and pi only need to be calculated once for all azimuths
+        else: 
+            azimuths = np.linspace(-np.pi, np.pi, res)
+            poles = np.flip(np.linspace(0, np.pi, res))
     if coord =='celestial':
         pass
     
     return azimuths, poles 
+
+
+def reshape_results(list_results, num, truncate=True):
+    """
+    Rearranges results produced using truncated version of az_po_meshgrid to match a typical grid of coordinates. 
+    Assumes the missing coordinates (azimuth, 0) and (azimuth, pi) were added to the end of the list of coordinates 
+    in that order, and that meshgrid is indexed with 'ij'.
+    
+    Parameters: 
+    num --- (Int) Resolution given to az_po_meshgrid.
+    list_results --- (List) List of values to rearrange.
+    """
+    if truncate==True:
+        # reshapes so azimuths correspond to rows, poles to columns
+        reshaped = np.reshape(list_results[:-2], (num-1, num-2))
+
+        # recovers values corresponding to (azimuth, 0) and (azimuth, pi)
+        az_zero = list_results[-2]
+        az_pi = list_results[-1]
+        az_pi_arr = np.full((num-1,), az_pi) # populates column with that value
+        az_zero_arr = np.full((num-1,), az_zero)
+
+        # stacks columns on either side of reshaped array
+        poles_added = np.column_stack((az_pi_arr, reshaped, az_zero_arr))
+
+        # recovers values for (-pi, poles)
+        pi_x_arr = poles_added[-1,:]
+
+        # stacks row on top of new array
+        grid = np.row_stack((pi_x_arr, poles_added))
+    else:
+        grid = np.reshape(list_results, (num,num))
+    
+    return grid
 
 
 def calculate_snr(detector_s, num, coord, freqs, psi_true, geocent, kwargs={}):
@@ -122,7 +158,6 @@ def calculate_snr(detector_s, num, coord, freqs, psi_true, geocent, kwargs={}):
                                           coord='geographic', 
                                           **kwargs)
     return snr
-
 #------------------------------------------------------------------------------------------------
 # geographic functions (mainly coordinate transforms)
 

@@ -9,7 +9,7 @@ import os
 
 """
 loops over values of "true" sky coordinates for the injected data. 
-optimizes over sky coordinates, polarization angle, psi, t0, and phi of comparison strain data,
+optimizes over sky coordinates, polarization angle, psi, t0, and phi of comparison strain data.
 returns overall best match, and corresponding max filter separately for each detector.
 """
 
@@ -62,11 +62,12 @@ strain_keys = sys.argv[9:]
 #---------------------------------------------------------------------------------------------------
 ## collecting variables, creating true sky positions
 
-true_azimuths, true_poles = az_po_meshgrid(true_res, coord)
+true_azimuths, true_poles = az_po_meshgrid(true_res, coord, truncate=True)
 
 True_Az, True_Po = np.meshgrid(true_azimuths, true_poles, indexing='ij')
 True_Psi = np.full(np.shape(True_Az.flatten()), true_psi)
-true_coords = list(zip(True_Az.flatten(), True_Po.flatten(), True_Psi)) 
+missing_coords = [(0, 0, 0), (0, np.pi, 0)]
+true_coords = list(zip(True_Az.flatten(), True_Po.flatten(), True_Psi)) + missing_coords 
 
 produce_freqs_signal_params = [freq_res, spread, a, A, c, dt, p]
 brute_params = [opt_func, ranges, npts]

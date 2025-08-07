@@ -6,23 +6,23 @@ from .general_functions import *
 
 #-------------------------------------------------------------------------------------------------------------------------
 # optimization input functions, numbered based on the number of variables they optimize over
+# note that the coordinates being calculated over using concurrent.futures must be the final two arguments of the function
 
-def filter_4(variables, a, A, c, t0_true, phi0_true, true_psi, true_keys,
-             freqs, geocent, coord, keys, t0, detector_s, true_azim, true_pole): 
+def filter_5(variables, a, A, c, detector_s, freqs, geocent, coord, keys, 
+             true_t0, true_psi, true_phi0, true_keys, true_azim, true_pole): 
     """
     Calculates the network filter given injected data and a projected strain. 
-    Takes variables psi and phi0, and strain sky coordinates azimuth, pole. 
+    Takes variables psi, t0, and phi0, and strain sky coordinates azimuth, pole. 
     """
-    psi, phi0, azim, pole = variables
+    psi, t0, phi0, azim, pole = variables
 
     strain_signal = ft_sine_Gaussian(freqs, a, A, c, t0, phi0)
-    true_signal = ft_sine_Gaussian(freqs, a, A, c, t0_true, phi0_true)
+    true_signal = ft_sine_Gaussian(freqs, a, A, c, true_t0, true_phi0)
     
     modes = dict.fromkeys(keys, strain_signal) 
     true_modes = dict.fromkeys(true_keys, true_signal)
-    
-    data = detector_s.project(freqs, geocent, true_azim, true_pole, true_psi, coord=coord, **true_modes)
     proj_strain = detector_s.project(freqs, geocent, azim, pole, psi, coord=coord, **modes)
+    data = detector_s.project(freqs, geocent, true_azim, true_pole, psi, coord=coord, **true_modes)
     
     fil = detector_s.modfilter(freqs, data, proj_strain)
     
@@ -76,22 +76,6 @@ def filter_3_det(variables, a, A, c, detector, freqs, geocent, data, coord, keys
     fil = detector.filter(freqs, data, proj_strain).real 
     
     return fil
-
-
-def filter_3_detectors(variables, a, A, c, detector_s, freqs, geocent, data, coord, keys, azim, pole): 
-    """
-    fils --- (List) Real component of the filter response in each detector.
-    """
-    psi, t0, phi0 = variables
-
-    strain_signal = ft_sine_Gaussian(freqs, a, A, c, t0, phi0)
-    
-    modes = dict.fromkeys(keys, strain_signal) 
-    proj_strain = detector_s.project(freqs, geocent, azim, pole, psi, coord=coord, **modes)
-    
-    fils = detector_s.testfilter(freqs, data, proj_strain).real
-    
-    return fils
 
 
 def filter_2a(variables, a, A, c, detector_s, freqs, geocent, data, coord, keys, t0, azim, pole): 

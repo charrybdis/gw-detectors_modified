@@ -39,25 +39,37 @@ def one_variable_mp(*args, finish=False):
 #----------------------------------------------------------------------------------------------
 # more complicated functions with multiprocessing
 
-def produce_optimization_params(detectors, produce_freqs_signal_params, true_params, strain_keys, num, variables=None): 
+def strain_coords(num, coord, truncate=True):
+    """
+    Helper for true_coords_cf. 
+    Creates list of strain sky coordinates.
+    """
+    # generate strain signal sky coordinate pairs 
+    azimuths, poles = az_po_meshgrid(num, coord, truncate=truncate)
+    Azimuths, Poles = np.meshgrid(azimuths, poles, indexing='ij')
+    
+    if truncate==False:
+        Coords_flat = list(zip(Azimuths.flatten(), Poles.flatten()))
+    else: 
+        missing_pairs = [(0, 0), (0, np.pi)]
+        Coords_flat = list(zip(Azimuths.flatten(), Poles.flatten())) + missing_pairs
+    return Coords_flat
+
+
+def produce_optimization_params(detectors, produce_freqs_signal_params, true_params, strain_keys, num, 
+                                variables=None, 
+                                truncate=True): 
     """
     Helper for true_coords_cf. 
     Creates all the information needed to optimize the filter response over psi, phi, t0, and strain sky coordinates.
 
     Parameters: 
     detectors --- (Detector or Network) instance of Network or Detector class. 
-    produce_freqs_signal_params --- (List) parameters for produce_freqs_signal function in Functions
-    true_params --- (List) parameters for "true" data; azimuth, pole, psi, geocent_time, coord, {hp:signal, hx:signal,....} 
-    strain_keys --- (List of strings) ['hp', 'hx',...]
-    num --- (Int) number of grid points for sky
-    variables --- (List) Defaults to None, corresponding to optimization over all 3 variables (psi, phi, t0). Otherwise, 
-        should be a list containing the fixed values of the variables not being optimized over, i.e. if using filter_2a,
-        variables should be [t0].
-        
+
     Returns:
     true_snr --- (Float) True SNR of data. 
     optimization_variables --- (List) 
-    Coords_flat --- (List) Sky coordinates.
+    Coords_flat --- (List) List of strain sky coordinates corresponding to a grid over the sky.
     """
 
     # generate astronomical signal information
@@ -81,11 +93,9 @@ def produce_optimization_params(detectors, produce_freqs_signal_params, true_par
         optimization_variables = [a, A, c, detectors, freqs, geocent, data, coord, strain_keys]
     else: 
         optimization_variables = [a, A, c, detectors, freqs, geocent, data, coord, strain_keys, *variables]
-
+        
     # generate strain signal sky coordinate pairs 
-    azimuths, poles = az_po_meshgrid(num, coord)
-    Azimuths, Poles = np.meshgrid(azimuths, poles, indexing='ij')
-    Coords_flat = list(zip(Azimuths.flatten(), Poles.flatten()))
+    Coords_flat = strain_coords(num, coord, truncate=truncate)
 
     return true_snr, optimization_variables, Coords_flat
 
@@ -106,22 +116,3 @@ def find_max_params(max_filter, list_results, Coords_flat, brute_params, optimiz
                     for max_azim, max_pole in max_sky_coords]
 
     return max_sky_coords, max_vars
-
-#----------------------------------------------------------------------------------------------
-### multiprocessing over true sky coordinates azimuth, pole, and detector locations
-# outer layer
-# Note to self: parallelize at the outer layer for true sky coordinates azimuth, pole too if 
-# bumping up resolution of true azimuth, true pole
-# UNTESTED
-
-def outer_helper(*args):
-    """
-    For main_cf. Returns function one_variable_filter_mp with just one argument (coordinates=azimuth, pole), for use in map.
-    
-    Parameters: 
-    *args --- (List) [function, ranges, numpoints, finish_func, a, A, c, t0_true, phi0_true, true_psi, true_keys,
-            freqs, geocent, coord, keys, t0]
-    """
-    helper_function = partial(brute_max, *args)
-    
-    return helper_function
