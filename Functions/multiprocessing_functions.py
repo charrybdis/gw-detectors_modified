@@ -183,12 +183,9 @@ def true_coords_cf_detectors(signal_coord, true_psi, geocent, coord, true_keys,
 
 #----------------------------------------------------------------------------------------------
 ### multiprocessing over true sky coordinates azimuth, pole, and detector locations
-# outer layer
-# Note to self: parallelize at the outer layer for true sky coordinates azimuth, pole too if 
-# bumping up resolution of true azimuth, true pole
-# UNTESTED
+# UNTESTED, not enough compute power
 
-def main_outer_cf(dim, existing_network, new_detectors, true_azims, true_poles, *args, workers=None):
+def main_outer_cf(dim, existing_network, new_detectors, true_azims, true_poles, *args, workers=None, finish=False):
     """
     Parameters:
     workers --- (Int or None) max number of workers, set to None for automatic assignment
@@ -198,16 +195,15 @@ def main_outer_cf(dim, existing_network, new_detectors, true_azims, true_poles, 
     true_poles --- (List of length N) 
     *args --- *args for helper_function
     """
-    new_detectors, true_azims, true_poles = variables
-    
-    helper = outer_helper(*args)
+    helper = outer_helper(*args, finish=finish)
     
     existing_detectors = existing_network.detectors
     new_networks = [Network(*existing_detectors, new_detector) for new_detector in new_detectors]
+    
+    outer_vars = list(zip(new_networks, true_azims, true_poles))
 
     with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
-        results = executor.map(helper, new_networks, true_azims, true_poles)
-    list_results = np.array(list(results))
-    grid = np.reshape(list_results, (dim, dim, dim))
+        results = executor.map(helper, outer_vars)
+    arr_results = np.array(list(results))
     
-    return grid
+    return arr_results

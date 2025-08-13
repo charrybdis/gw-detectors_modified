@@ -372,3 +372,7 @@ class Network(object):
     def testfilter(self, freqs, data, strain):
         # added, unpacks strain, returns filter values as a list
         return np.array([det.filter(freqs, d, s) for det, d, s in zip(self.detectors, data, strain)])
+    
+    def testsnr_data(self, freqs, data):
+        # added, matches implementation of snr for Detector object
+        return np.array([det.snr(freqs, d)**2 for det, d in zip(self.detectors, data)])

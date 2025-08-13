@@ -6,10 +6,10 @@ from .general_functions import *
 
 #-------------------------------------------------------------------------------------------------------------------------
 # optimization input functions, numbered based on the number of variables they optimize over
-# note that the coordinates being calculated over using concurrent.futures must be the final two arguments of the function
+# note that the coordinates being calculated over using concurrent.futures must be the final arguments of the function
 
-def filter_5(variables, a, A, c, detector_s, freqs, geocent, coord, keys, 
-             true_t0, true_psi, true_phi0, true_keys, true_azim, true_pole): 
+def filter_5(variables, a, A, c, freqs, geocent, coord, keys, 
+             true_t0, true_psi, true_phi0, true_keys, detector_s, true_azim, true_pole): 
     """
     Calculates the network filter given injected data and a projected strain. 
     Takes variables psi, t0, and phi0, and strain sky coordinates azimuth, pole. 
@@ -150,6 +150,22 @@ def filter_1(psi, a, A, c, network, freqs, geocent, data, coord, keys, p, t0, az
     
     return fil
 
+
+def match_3(variables, a, A, c, detector_s, freqs, geocent, data, coord, keys, azim, pole): 
+    """
+    Uses the match instead.
+    """
+    psi, t0, phi0 = variables
+
+    strain_signal = ft_sine_Gaussian(freqs, a, A, c, t0, phi0)
+    
+    modes = dict.fromkeys(keys, strain_signal) 
+    proj_strain = detector_s.project(freqs, geocent, azim, pole, psi, coord=coord, **modes)
+    
+    snrs = detector_s.testsnr_data(freqs, data)
+    fils = detector_s.testfilter(freqs, data, proj_strain).real
+    
+    return np.sum((fils/snrs)**2)**0.5
 #-------------------------------------------------------------------------------------------------------------------------
 # optimization functions
 

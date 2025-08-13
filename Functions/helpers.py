@@ -116,3 +116,24 @@ def find_max_params(max_filter, list_results, Coords_flat, brute_params, optimiz
                     for max_azim, max_pole in max_sky_coords]
 
     return max_sky_coords, max_vars
+
+#----------------------------------------------------------------------------------------------
+### multiprocessing over true sky coordinates and detectors in network
+
+def outer_one_variable(function, ranges, numpoints, optimization_variables, outer_vars, finish=False): 
+    """
+    Helper for outer_main_cf.
+    """
+    network, az, po = coordinates
+    full_func = brute_max(function, ranges, numpoints, *optimization_variables, network, az, po, finish=finish)[1]
+    
+    return full_func
+
+
+def outer_helper(*args, finish=False):
+    """
+    Helper for outer_main_cf. 
+    """
+    one_variable = partial(one_variable_filter_mp, *args, finish=finish)
+    
+    return one_variable
