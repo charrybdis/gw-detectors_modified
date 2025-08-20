@@ -2,9 +2,7 @@ import numpy as np
 from gwdetectors.detector import *
 import warnings
 
-#------------------------------------------------------------------------------------------------
-# general functions
-
+#-------------------------------------------------------------------------------------
 def c():
     """
     speed of light in m/s
@@ -93,7 +91,7 @@ def az_po_meshgrid(res, coord, truncate=False):
             azimuths = np.linspace(-np.pi, np.pi, res)
             poles = np.flip(np.linspace(0, np.pi, res))
     if coord =='celestial':
-        pass
+        pass # maybe add this later
     
     return azimuths, poles 
 

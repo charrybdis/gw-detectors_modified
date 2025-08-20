@@ -61,6 +61,8 @@ strain_keys = sys.argv[9:]
 
 #---------------------------------------------------------------------------------------------------
 ## collecting variables, creating true sky positions
+## ideally, the grid spacing should be such that the strain coordinates contain the true coordinates
+## otherwise the match can be quite bad simply because the coordinates can't match
 
 true_azimuths, true_poles = az_po_meshgrid(true_res, coord)
 

@@ -1,7 +1,6 @@
 import numpy as np
 from scipy.optimize import brute, minimize, Bounds
 from gwdetectors.detector.utils import inner_product
-import warnings
 from .general_functions import *
 
 #-------------------------------------------------------------------------------------------------------------------------
@@ -150,28 +149,12 @@ def filter_1(psi, a, A, c, network, freqs, geocent, data, coord, keys, p, t0, az
     
     return fil
 
-
-def match_3(variables, a, A, c, detector_s, freqs, geocent, data, coord, keys, azim, pole): 
-    """
-    Uses the match instead.
-    """
-    psi, t0, phi0 = variables
-
-    strain_signal = ft_sine_Gaussian(freqs, a, A, c, t0, phi0)
-    
-    modes = dict.fromkeys(keys, strain_signal) 
-    proj_strain = detector_s.project(freqs, geocent, azim, pole, psi, coord=coord, **modes)
-    
-    snrs = detector_s.testsnr_data(freqs, data)
-    fils = detector_s.testfilter(freqs, data, proj_strain).real
-    
-    return np.sum((fils/snrs)**2)**0.5
 #-------------------------------------------------------------------------------------------------------------------------
 # optimization functions
 
 def brute_max(function, ranges, numpoints, *args, finish=False):
     """
-    Maximizing over general function for ranges of variables with the scipy brute function. 
+    Direct maximization over general function for ranges of variables with the scipy brute function. 
     
     Parameters:
     function --- (Function) function to maximize over
@@ -204,7 +187,7 @@ def brute_max(function, ranges, numpoints, *args, finish=False):
 
 def ift_max(network, num, a, A, c, freqs, geocent, data, coord, strain_keys, strain_azim, strain_pole):
     """
-    DOESN'T WORK
+    DOESN'T WORK AND DON'T KNOW WHY
     """
     # initialize variables
     max_filter = 0

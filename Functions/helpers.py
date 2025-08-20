@@ -1,11 +1,10 @@
 import numpy as np
-import warnings
 from .general_functions import * 
 from .optimization_functions import *
 from functools import partial
 
 #----------------------------------------------------------------------------------------------
-### multiprocessing over strain sky coordinates azimuth, pole
+### for multiprocessing over strain sky coordinates azimuth, pole
 # maximizes over an inner layer (strain sky coordinates)
 
 def one_variable_filter_mp(function, ranges, numpoints, optimization_variables, coordinates, finish=False): 
@@ -37,7 +36,7 @@ def one_variable_mp(*args, finish=False):
     return one_variable
 
 #----------------------------------------------------------------------------------------------
-# more complicated functions with multiprocessing
+# for more complicated functions with multiprocessing
 
 def strain_coords(num, coord, truncate=True):
     """

@@ -15,4 +15,4 @@ frequencies=(1 "0.4" "0.8" "1.2" "1.6" "2.0") # since array starts at 1, exclude
 current_frequency=${frequencies[$PBS_ARRAY_INDEX]}
 export NUMEXPR_MAX_THREADS=128
 python ./optimization_cf_detectors.py \
-/fs/lustre/cita/jewelcao/results/hp_true/hb/${current_frequency}_1e-3 200 ${current_frequency} 5e-3 8 16 64 128 hb
+/fs/lustre/cita/jewelcao/results/hp_true/hb/${current_frequency}_0.0015 200 ${current_frequency} '0.0015' 8 16 64 128 hb

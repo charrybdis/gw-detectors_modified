@@ -138,11 +138,11 @@ def true_coords_cf_detectors(signal_coord, true_psi, geocent, coord, true_keys,
         If full_output is true, also contains variables that give maximum match.
     """
     true_az, true_po, true_psi = signal_coord # unpack coordinates
-    
-    # generate astronomical signal information
+
+    # generate astrophysical signal information
     numpts, spread, a, A, c, dt, p = freqs_signal_params
     freqs, ast_signal = produce_freqs_signal(numpts, spread, a, A, c, dt, p)
-    
+
     # true data information (projected into network)
     true_modes = dict.fromkeys(true_keys, ast_signal)
     data = network.project(freqs, geocent, true_az, true_po, true_psi, coord=coord, **true_modes)
@@ -155,27 +155,28 @@ def true_coords_cf_detectors(signal_coord, true_psi, geocent, coord, true_keys,
     else: 
         optimization_variables = [a, A, c, network, freqs, geocent, data, coord, strain_keys, *variables]
 
-    # generate strain signal sky coordinate pairs 
+    # generate strain signal sky coordinate pairs to optimize over
     Coords_flat = strain_coords(num, coord, truncate=truncate)
 
-    # optimize
+    # optimize over strain signal sky coordinate pairs, psi, t0, and phi
     list_results = main_cf(Coords_flat, *brute_params, optimization_variables,
                            workers=workers, 
                            finish=finish)
     max_filter = np.max(list_results)
     match = max_filter / snr
-    
-    # find parameters
+
+    # find parameters corresponding to optimization result
     max_sky_coords, max_vars = find_max_params(max_filter, list_results, Coords_flat, brute_params, optimization_variables)
     max_az, max_po = max_sky_coords[0]
     max_psi, max_t0, max_phi = max_vars[0]
-    
-    # find all filter values
+
+    # find all filter values for detectors in network corresponding to optimization result
     optimized_signal = ft_sine_Gaussian(freqs, a, A, c, max_t0, max_phi)
     test_mode = dict.fromkeys(strain_keys, optimized_signal)
     strain = network.project(freqs, geocent, max_az, max_po, max_psi, coord=coord, **test_mode)
     det_filters = network.testfilter(freqs, data, strain).real
 
+    # collect results
     run_results = {'true pole': true_po, 'true azim':true_az, 'true psi': true_psi, 'match':match, 
                    'filters':det_filters, 'snrs':true_snrs, 'sky_coords':max_sky_coords, 'vars':max_vars}
 
@@ -183,7 +184,7 @@ def true_coords_cf_detectors(signal_coord, true_psi, geocent, coord, true_keys,
 
 #----------------------------------------------------------------------------------------------
 ### multiprocessing over true sky coordinates azimuth, pole, and detector locations
-# UNTESTED, not enough compute power
+# UNTESTED, too computationally expensive
 
 def main_outer_cf(dim, existing_network, new_detectors, true_azims, true_poles, *args, workers=None, finish=False):
     """
